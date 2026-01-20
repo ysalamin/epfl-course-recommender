@@ -1,0 +1,128 @@
+Voici 5 exemples d'offres d'emploi conçues pour tester les différentes facettes de ton "Google des cours" (Finance, IA, Robotique, Bio, et Sécurité).
+
+Utilise-les pour vérifier si ton Filtre SHS et ton Nettoyage fonctionnent bien.
+
+1. Le Test "Quant Finance" (Le Juge de Paix) ⚖️
+C'est celui qui posait problème. Il ne doit plus sortir de Physique Quantique ni de Sociologie.
+
+📋 Copie ceci dans l'app :
+
+Job Title: Quantitative Analyst (Derivatives Pricing) Description: We are looking for a Financial Engineer to join our trading desk in Geneva. The candidate will develop pricing models for exotic derivatives using stochastic calculus and Monte Carlo simulations. Requirements:
+
+Strong knowledge of Stochastic Differential Equations (SDEs) and Black-Scholes model.
+
+Experience in Financial Econometrics and time-series analysis.
+
+Ability to implement models in C++ and Python.
+
+Understanding of market risk and volatility surfaces.
+
+🎯 Cours attendus (Top 3) :
+
+Derivatives (ou Produits dérivés)
+
+Financial Econometrics
+
+Stochastic Calculus (ou Calcul stochastique pour la finance)
+
+Introduction to Finance (Si "Histoire de l'énergie" ou "Quantum Mechanics" apparaît dans le Top 3, il y a encore un souci).
+
+2. Le Test "Machine Learning Engineer" (Le Classique) 🤖
+Pour vérifier la section Informatique / Data Science.
+
+📋 Copie ceci dans l'app :
+
+Job Title: AI & Computer Vision Engineer Description: Join our startup to build autonomous surveillance systems. You will design and train deep neural networks for object detection. Responsibilities:
+
+Implement Deep Learning models (CNN, Transformers) using PyTorch.
+
+Work on Image Processing and video analysis algorithms.
+
+Optimize models for inference on edge devices.
+
+Apply Reinforcement Learning for decision making agents.
+
+🎯 Cours attendus :
+
+Deep Learning (EE-559 ou CS-433)
+
+Machine Learning
+
+Computer Vision
+
+Artificial Neural Networks
+
+3. Le Test "Robotique & Hardware" (STI / Microtechnique) 🦾
+Pour voir si l'IA fait bien la différence entre le code pur et le code pour robots.
+
+📋 Copie ceci dans l'app :
+
+Job Title: Robotics Control Engineer Description: We are building the next generation of quadruped robots. We need an engineer to design robust control laws for dynamic movement. Mission:
+
+Design Model Predictive Control (MPC) and PID controllers.
+
+Work on Kinematics and dynamics of multi-body systems.
+
+Program microcontrollers (STM32) for real-time actuation.
+
+Experience with Legged Robots or mobile robotics is a plus.
+
+🎯 Cours attendus :
+
+Model Predictive Control
+
+Basics of Mobile Robotics
+
+Legged Robots (C'est un cours spécifique EPFL !)
+
+Control Systems (ou Automatique)
+
+4. Le Test "Bio-Informatique" (SV / Life Sciences) 🧬
+Pour vérifier que les cours de biologie remontent bien.
+
+📋 Copie ceci dans l'app :
+
+Job Title: Computational Biologist Description: Analyze large-scale genomic datasets to discover new gene therapies. Tasks:
+
+Perform DNA sequencing data analysis (NGS).
+
+Use Python and R to model gene expression networks.
+
+Apply statistical methods to Genomics and proteomics data.
+
+Understanding of molecular biology and cellular processes.
+
+🎯 Cours attendus :
+
+Computational Biology
+
+Genomics and Bioinformatics
+
+Biotechnology
+
+Statistical analysis of genetic data
+
+5. Le Test "Cybersécurité" (IC / Cyber) 🔐
+Pour les hackers éthiques.
+
+📋 Copie ceci dans l'app :
+
+Job Title: Penetration Tester / Security Analyst Description: Ensure the security of our banking infrastructure by identifying vulnerabilities in networks and applications. Requirements:
+
+Expertise in Cryptography (RSA, Elliptic Curves, AES).
+
+Knowledge of network protocols (TCP/IP) and Network Security.
+
+Ability to exploit buffer overflows and secure operating systems.
+
+Familiarity with blockchain and decentralized ledger technologies.
+
+🎯 Cours attendus :
+
+Cryptography and Security
+
+Computer Security
+
+Information Security and Privacy
+
+TCP/IP Networking

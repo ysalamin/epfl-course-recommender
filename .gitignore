@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+epfl_cours_db/
+venv/
+.DS_Store
