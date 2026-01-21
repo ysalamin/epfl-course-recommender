@@ -6,8 +6,8 @@ import json
 import os
 
 # --- CONFIGURATION ---
-INPUT_URLS_FILE = "urls_cours.txt"
-OUTPUT_JSON_FILE = "cours_data_final.json"
+INPUT_URLS_FILE = "../data/urls_cours.txt"
+OUTPUT_JSON_FILE = "../data/cours_data_final.json"
 
 def get_course_details(url):
     try:

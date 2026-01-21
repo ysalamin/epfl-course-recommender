@@ -5,8 +5,8 @@ import os
 
 # --- CONFIGURATION ---
 # On pointe vers le fichier final (assure-toi d'avoir lancé le scraper complet avec ce nom)
-INPUT_FILE = "cours_data_final.json"
-DB_PATH = "./epfl_cours_db"
+INPUT_FILE = "../data/cours_data_final.json"
+DB_PATH = "../depfl_cours_db"
 COLLECTION_NAME = "cours_epfl"
 
 def main():
