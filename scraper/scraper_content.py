@@ -11,105 +11,98 @@ OUTPUT_JSON_FILE = "../data/cours_data_final.json"
 
 def get_course_details(url):
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url)
         if response.status_code != 200: return None
+        soup = BeautifulSoup(response.content, "html.parser")
+
+        # Retrieving the title of the course
+        title_tag = soup.find("h1")
+        title = title_tag.get_text(strip=True) if title_tag else "No title"
         
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # 1. TITRE
-        title_tag = soup.find('h1')
-        title = title_tag.get_text(strip=True) if title_tag else "Sans titre"
-        
-        # 2. PLANS D'ÉTUDES (Méthode CSS précise)
-        study_plans = []
-        plans_container = soup.find('div', class_='study-plans')
-        
+        # Examples : Bachelor Syscom, Bachelor info, Master Data science...
+        course_metadata = []
+        plans_container = soup.find("h1", class_="study-plans")
+
         if plans_container:
-            buttons = plans_container.find_all('button', class_='collapse-title')
-            for btn in buttons:
-                span_tag = btn.find('span')
+            accordeons = soup.find_all("button", class_="collapse-title")
+            for accordeon in accordeons:
+                span_tag = accordeon.find("span")
                 if not span_tag: continue
-                
-                # Extraction Section et Niveau
-                full_btn_text = btn.get_text(strip=True)
-                span_text = span_tag.get_text(strip=True)
-                section_name = full_btn_text.replace(span_text, "").strip()
-                
+
+                # Extraction Section (Syscom) and level(Master)
+                full_accordeon_text = accordeon.get_text(strip=True)
+                span_text = span_tag.getText(strip=True)
+                section_name = full_accordeon_text.replace(span_text, "")
+
                 level = "Autre"
-                if "Bachelor" in span_text: level = "Bachelor"
-                elif "Master" in span_text: level = "Master"
-                
-                # Extraction Type (avec Regex)
-                content_div = btn.find_next_sibling('div', class_='collapse-item')
-                course_type = "Inconnu"
-                
-                if content_div:
-                    block_text = content_div.get_text(separator="\n")
-                    # Regex pour capturer "Type: obligatoire" ou "Type: mandatory"
-                    match = re.search(r"(?i)Type\s*:\s*(.*)", block_text)
-                    if match:
-                        course_type = match.group(1).strip().lower()
-                
-                study_plans.append({
-                    "full_header": section_name,
-                    "niveau": level,
-                    "type": course_type
+                if "Master" in span_text: level = "Master"
+                elif "Bachelor" in span_text: level = "Bachelor" 
+
+                # Mandatory / Optional extraction
+                type_str = ""
+                accordeon_content_div = accordeon.find_next_sibling("div", class_="collapse-item")
+                if accordeon_content_div:
+                    strong_tag = accordeon_content_div.find("strong", string="Type:")
+                    if strong_tag:
+                        type_tag = strong_tag.next_sibling
+                        if type_tag:
+                            type_str = type_tag.strip()
+
+                course_metadata.append({
+                    "level": level,
+                    "section": section_name,
+                    "isMandatory": type_str.lower() in ["obligatoire", "mandatory"]
                 })
 
-        # Fallback si vide
-        if not study_plans:
-            study_plans.append({"full_header": "Général", "niveau": "Inconnu", "type": "Inconnu"})
 
-        # 3. CONTENU IA
-        main_content = soup.find('div', class_='main-content') or soup.find('main') or soup.body
+        # Fallback if empty
+        if not course_metadata:
+            course_metadata.append({"level": "unknown", "section": "unknown", "isMandatory": "unknown"})
+
+        # Content to be vectorize (main content, document)
+        content_div = soup.find("div", class_="course-details")
+        if not content_div:
+            content_div = soup.find("main") or soup.body
+
         relevant_text = ""
-        if main_content:
-            for junk in main_content.find_all(['nav', 'header', 'footer', 'form', 'script', 'style', 'div.study-plans']):
-                junk.decompose()
-            full_text = main_content.get_text(separator=" ", strip=True)
-            match_start = re.search(r"(Résumé|Summary|Contenu|Content)\s*[:\.]?", full_text, re.IGNORECASE)
-            start_index = match_start.start() if match_start else 0
-            relevant_text = full_text[start_index:2000]
+        if content_div:
+            relevant_text = content_div.get_text(separator=" ", strip=True)
 
         return {
             "url": url,
-            "titre": title,
-            "full_embedding_text": f"{title}. {relevant_text}",
-            "plans": study_plans
+            "title": title,
+            "content": f"{title}. {relevant_text}",
+            "metadata": course_metadata
         }
 
+
+
     except Exception as e:
-        print(f"❌ Erreur {url}: {e}")
+        print(f"Error retrieving : {url}, {e}")
         return None
 
 def main():
-    print("🚀 Démarrage du SCRAPER FINAL...")
-    
-    if not os.path.exists(INPUT_URLS_FILE):
-        print(f"❌ Fichier {INPUT_URLS_FILE} introuvable !")
-        return
+    print("Start scraping...")
 
-    with open(INPUT_URLS_FILE, "r", encoding="utf-8") as f:
+    if not os.path.exists(INPUT_URLS_FILE):
+        print("Input_urls_file not found, path problem")
+
+    with open(INPUT_URLS_FILE, "r", encoding="utf-8") as f :
         urls = [line.strip() for line in f if line.strip()]
 
-    print(f"🎯 {len(urls)} cours à analyser.")
-    cours_data = []
-    
-    for i, url in enumerate(urls):
-        print(f"[{i+1}/{len(urls)}] {url.split('/')[-1][:40]}...")
-        details = get_course_details(url)
-        if details:
-            cours_data.append(details)
-        
-        if (i+1) % 50 == 0:
-            with open(OUTPUT_JSON_FILE, "w", encoding="utf-8") as f:
-                json.dump(cours_data, f, ensure_ascii=False, indent=4)
-        
-        time.sleep(0.1) 
+    courses_data = []
 
+    for i, url in enumerate(urls):
+        print(f"{i} / {len(urls)} / {url.split('/')[-1][:40]}...")
+        content = get_course_details(url)
+        if content:
+            courses_data.append(content)
+        
     with open(OUTPUT_JSON_FILE, "w", encoding="utf-8") as f:
-        json.dump(cours_data, f, ensure_ascii=False, indent=4)
-    print("✅ TERMINE ! Lance maintenant 'python indexer.py'")
+        json.dump(courses_data, f, ensure_ascii=False, indent=4)
+
+    print("Done, you can now run python indexer.py")
+
 
 if __name__ == "__main__":
     main()
