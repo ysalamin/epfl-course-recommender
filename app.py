@@ -1,20 +1,16 @@
-import streamlit as st
-import chromadb
 from sentence_transformers import SentenceTransformer, CrossEncoder
+import chromadb
 from rank_bm25 import BM25Okapi
-import os
+import streamlit as st
 import math
 import json
 
-# --- CONFIGURATION ---
+# CONST
 DB_PATH = "./epfl_cours_db"
 COLLECTION_NAME = "cours_epfl"
 
-st.set_page_config(page_title="EPFL Course Recommender", page_icon="🎓", layout="wide")
+st.set_page_config("EPFL Course Recommender", page_icon="🎓", layout="wide")
 
-# --- TA NOUVELLE LISTE COMPLETE ---
-# Note: J'ai ajouté quelques alias anglais courants (Computer Science, Communication Systems) 
-# pour t'assurer des résultats même si le scraper tombe sur la page EN.
 PROGRAMMES = {
     "🌐 Tout explorer": (None, None),
 
@@ -67,121 +63,129 @@ PROGRAMMES = {
     "📡 Master SysCom": (["Systèmes de communication", "Communication Systems"], "Master"),
     "🏙️ Master Systèmes urbains": (["Systèmes urbains"], "Master"),
 }
-
-# --- CHARGEMENT ---
-def sigmoid(x): return 1 / (1 + math.exp(-(x + 6)))
-
 @st.cache_resource
-def load_models():
-    return SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2'), CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+def load_resources():
 
-@st.cache_resource
-def load_db_collection():
-    return chromadb.PersistentClient(path=DB_PATH).get_collection(name=COLLECTION_NAME)
+    # Models
+    embedder = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2', device='cpu')
+    reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
 
-@st.cache_resource
-def init_bm25(documents):
-    return BM25Okapi([doc.split(" ") for doc in documents])
+    # DB
+    client = chromadb.PersistentClient(path=DB_PATH)
+    collection = client.get_collection(name=COLLECTION_NAME)
+    all_docs = collection.get()
 
-try:
-    with st.spinner("Chargement..."):
-        sentence_transformer, model_reranker = load_models()
-        collection = load_db_collection()
-        all_docs = collection.get()
-        documents_list = all_docs['documents']
-        ids_list = all_docs['ids']
-        metadatas_list = all_docs['metadatas']
-        bm25_engine = init_bm25(documents_list)
-except Exception as e:
-    st.error(f"Erreur DB : {e}")
-    st.stop()
+    tokenized_corpus = [doc.split() for doc in all_docs['documents']]
+    bm25 = BM25Okapi(tokenized_corpus)
 
-# --- INTERFACE ---
-with st.sidebar:
-    st.header("👤 Votre Profil")
+    return embedder, reranker, collection, bm25, all_docs
+
+
+def search_courses(query, filters, embedder, reranker, collection, bm25, all_data, top_k=10):
+    query_emb = embedder.encode(query).tolist()
+    ia_candidates = collection.query(query_embeddings=[query_emb], n_results = top_k * 2)
+    ia_ids = set(ia_candidates['ids'][0])
+
+    # We have candidates based on scalar products. Now we will filter again
+    # With BM25, based on key words
+    bm25_candidates = bm25.get_top_n(query.split(), all_data['documents'], n=top_k * 2)
+    bm25_ids = set(bm25_candidates)
+
+    # Filtering
+    for doc in bm25_candidates:
+        idx = all_data['documents'].index(doc)
+        bm25_ids.add(all_data['ids'][idx])
     
-    # 1. Le sélecteur de programme
-    selected_program_name = st.selectbox("Programme", options=list(PROGRAMMES.keys()), index=0) # index 0 pour "Tout explorer" par défaut
-    target_aliases, target_level = PROGRAMMES[selected_program_name]
-    
-    st.markdown("---")
-    st.header("⚙️ Paramètres de recherche")
-    top_k = st.slider("Nombre de résultats max", min_value=5, max_value=100, value=10, step=5)    # 2. Section Debug améliorée
+    combined_ids = ia_ids.union(bm25_ids)
 
+    filtered_candidates = []
+    target_aliases, target_level = filters
 
-st.title("🎓 EPFL Course Recommender")
-job_offer = st.text_area("📋 Ce que vous cherchez...", height=100)
-search_btn = st.button("🚀 Trouver les cours", type="primary", use_container_width=True)
+    for cid in combined_ids:
+        if cid not in all_data['ids']: continue
+        dbIdx = all_data['ids'].index(cid)
+        meta = all_data['metadatas'][dbIdx]
+        plans = json.loads(meta.get('metadata', '[]'))
 
-# --- LOGIQUE ---
-if search_btn and job_offer:
-    with st.spinner("Recherche..."):
-        # 1. Retrieval
-        query_vector = sentence_transformer.encode(job_offer).tolist()
-        
-        # ON UTILISE top_k * 2 pour avoir de la marge pour le filtrage
-        limit_search = top_k * 2 
-        
-        v_results = collection.query(query_embeddings=[query_vector], n_results=limit_search)
-        v_ids = v_results['ids'][0] if v_results['ids'] else []
-        
-        bm25_top = bm25_engine.get_top_n(job_offer.split(" "), documents_list, n=limit_search)
-        bm25_ids = [ids_list[documents_list.index(d)] for d in bm25_top if d in documents_list]
-        
-        all_ids = list(set(v_ids + bm25_ids))
-        candidates, final_ids, final_metas = [], [], []
+        isMatch = False
+        badge = ""
 
-        # 2. Filtering
-        for doc_id in all_ids:
-            try:
-                idx = ids_list.index(doc_id)
-                meta = metadatas_list[idx]
-                plans = json.loads(meta.get('plans_json', '[]'))
-                
-                keep = False
-                badge = ""
-                
-                if target_aliases is None: # Tout explorer
-                    keep = True
-                else:
-                    # Vérification LISTE alias
-                    for plan in plans:
-                        p_head = plan.get('full_header', '').lower()
-                        p_lvl = plan.get('niveau', '').lower()
-                        
-                        # On vérifie si UN des alias (ex: "informatique" OU "computer science") est dans le header
-                        match_section = any(alias.lower() in p_head for alias in target_aliases)
-                        match_level = target_level.lower() in p_lvl
-                        
-                        if match_section and match_level:
-                            keep = True
-                            badge = plan.get('type', 'Inconnu')
-                            break
-                
-                if keep:
-                    if "Summer workshop" in meta['titre']: continue
-                    candidates.append([job_offer, documents_list[idx]])
-                    final_ids.append(doc_id)
-                    meta['badge'] = badge
-                    final_metas.append(meta)
-            except: continue
-
-        # 3. Reranking & Display
-        if candidates:
-            scores = model_reranker.predict(candidates)
-            ranked = sorted(zip(scores, final_ids, final_metas, candidates), key=lambda x: x[0], reverse=True)
-            
-            st.success(f"{len(ranked)} cours trouvés")
-            for i in range(min(top_k, len(ranked))):
-                score, did, meta, content = ranked[i]
-                badge_txt = meta.get('badge', '')
-                color = "red" if "bligatoire" in badge_txt or "andatory" in badge_txt else "green"
-                
-                st.markdown(f"### [{meta['titre']}]({did})")
-                if badge_txt: st.caption(f":{color}[{badge_txt}]")
-                st.progress(sigmoid(score), text=f"Pertinence: {sigmoid(score):.0%}")
-                with st.expander("Détails"):
-                    st.write(content[1][:400]+"...")
-                st.divider()
+        if target_aliases is None:
+            isMatch = True
         else:
-            st.warning("Aucun cours trouvé.")
+            for p in plans:
+                sec = p.get('section', '').lower()
+                lvl = p.get('level', '').lower()
+
+                sec_match = any(alias.lower() in sec for alias in target_aliases)
+                lvl_match = target_level.lower() in lvl
+
+                if sec_match and lvl_match:
+                    isMatch = True
+                    badge = "Obligatoire" if p.get('isMandatory') else "Optionnel"
+                    break
+        if isMatch:
+            filtered_candidates.append(
+                {
+                    "id": cid,
+                    "content": all_data['documents'][dbIdx],
+                    "meta": meta,
+                    "badge": badge
+                }
+            )
+    # Remove duplicates
+    unique_titles = set()
+    unique_candidates = []
+    for candidate in filtered_candidates:
+        title = candidate['meta']['title']
+        if title not in unique_titles:
+            unique_candidates.append(candidate)
+            unique_titles.add(title)
+    filtered_candidates = unique_candidates
+
+    if not filtered_candidates: return []
+
+    # Reranking
+    #Preparing (Query, Document) pairs for CrossEncoder
+    pairs = [[query, candidate["content"]] for candidate in filtered_candidates]
+    scores = reranker.predict(pairs)
+
+    for candidate, score in zip(filtered_candidates, scores):
+        candidate['score'] = score
+    filtered_candidates.sort(key=lambda x: x['score'], reverse = True)
+
+    return filtered_candidates[:top_k]
+
+
+
+def main():
+    st.title("EPFL Course Matcher 🎓")
+
+    # Sidebar
+    with st.sidebar:
+        st.header("Filtres")
+        degree_selected = st.selectbox("Diplôme", list(PROGRAMMES.keys()))
+        filters = PROGRAMMES[degree_selected]
+        k = st.slider("Nombre de résultats", 1, 10, 5)
+
+    emb, rerank, coll, bm25, data = load_resources()
+
+    query = st.text_area("Colle une offre d'emploi que tu vises")
+
+    if st.button("Rechercher"):
+        if not query:
+            st.warning("écris quelque chose !")
+            return
+        with st.spinner("Analyse en cours..."):
+            results = search_courses(query, filters, emb, rerank, coll, bm25, data, k)
+
+        for r in results:
+            score_percent =  1 / (1 + math.exp(-(r['score'] + 6)))
+            color = "red" if r['badge'] == "Obligatoire" else "green"
+            st.markdown(f"### [{r['meta']['title']}({r['meta']['url']})]")
+            st.progress(score_percent)
+            with st.expander("Voir plus"):
+                st.write(r['content'][:400] + "...")
+
+if __name__ == "__main__":
+    main()
