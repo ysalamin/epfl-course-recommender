@@ -127,40 +127,23 @@ def get_unique_sections(all_data):
 
 def search_courses(query, filters, embedder, reranker, collection, bm25, all_data):
     """
-    Strict filtering logic:
-    - Filter by level (Bachelor/Master)
-    - Filter by section (user's program)
-    - Filter by type == 'Optionnel' ONLY
-    - If Bachelor, filter by semester (Fall/Spring)
-    - Return ALL matching courses sorted by relevance
+    New logic: Show ALL courses matching filters, sorted by relevance
+    - First: Apply strict filters (level, section, semester, type='Optionnel')
+    - Then: Calculate relevance score for ALL filtered courses
+    - Finally: Sort by relevance (query only affects ORDER, not visibility)
     """
     target_level, target_section, semester_filter = filters
 
-    # Get more candidates to ensure we don't miss relevant optional courses
-    query_emb = embedder.encode(query).tolist()
-    ia_candidates = collection.query(query_embeddings=[query_emb], n_results=100)
-    ia_ids = set(ia_candidates['ids'][0])
-
-    # BM25 keyword search
-    bm25_candidates = bm25.get_top_n(query.split(), all_data['documents'], n=100)
-    bm25_ids = set()
-    for doc in bm25_candidates:
-        idx = all_data['documents'].index(doc)
-        bm25_ids.add(all_data['ids'][idx])
-
-    combined_ids = ia_ids.union(bm25_ids)
-
     print(f"\n{'='*80}")
     print(f"FILTRES: level={target_level}, section={target_section}, semester={semester_filter}")
-    print(f"Candidats initiaux: {len(combined_ids)}")
+    print(f"Mode: Affichage de TOUS les cours correspondants aux filtres")
     print(f"{'='*80}\n")
 
+    # Step 1: Get ALL courses matching strict filters (no query-based filtering yet)
     filtered_candidates = []
 
-    for cid in combined_ids:
-        if cid not in all_data['ids']: continue
-        dbIdx = all_data['ids'].index(cid)
-        meta = all_data['metadatas'][dbIdx]
+    for idx, cid in enumerate(all_data['ids']):
+        meta = all_data['metadatas'][idx]
         plans = json.loads(meta.get('metadata', '[]'))
 
         # Check if ANY plan matches our criteria
@@ -172,7 +155,7 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
 
             # Strict filtering
             level_match = (lvl == target_level)
-            section_match = (sec == target_section)  # CRITICAL: Section must match
+            section_match = (sec == target_section)
             type_match = (course_type == "Optionnel")
 
             # Semester match (only for Bachelor)
@@ -185,7 +168,7 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
                 print(f"✓ MATCH: {meta.get('title', 'N/A')[:50]} | {lvl} | {sec} | {course_type} | {sem}")
                 filtered_candidates.append({
                     "id": cid,
-                    "content": all_data['documents'][dbIdx],
+                    "content": all_data['documents'][idx],
                     "meta": meta,
                     "level": lvl,
                     "section": sec,
@@ -204,19 +187,27 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
             unique_titles.add(title)
     filtered_candidates = unique_candidates
 
-    print(f"\nCours optionnels trouvés après filtrage strict: {len(filtered_candidates)}\n")
+    print(f"\nCours optionnels trouvés (TOTAL): {len(filtered_candidates)}\n")
 
     if not filtered_candidates:
         return []
 
-    # Reranking by relevance to job description
-    pairs = [[query, candidate["content"]] for candidate in filtered_candidates]
-    scores = reranker.predict(pairs)
+    # Step 2: Calculate relevance score for ALL filtered courses
+    if query and query.strip():
+        print("Calcul des scores de pertinence pour TOUS les cours...\n")
+        pairs = [[query, candidate["content"]] for candidate in filtered_candidates]
+        scores = reranker.predict(pairs)
 
-    for candidate, score in zip(filtered_candidates, scores):
-        candidate['score'] = score
+        for candidate, score in zip(filtered_candidates, scores):
+            candidate['score'] = score
 
-    filtered_candidates.sort(key=lambda x: x['score'], reverse=True)
+        # Sort by relevance score (highest first)
+        filtered_candidates.sort(key=lambda x: x['score'], reverse=True)
+    else:
+        # No query: sort alphabetically by title
+        filtered_candidates.sort(key=lambda x: x['meta']['title'])
+        for candidate in filtered_candidates:
+            candidate['score'] = 0  # Neutral score
 
     return filtered_candidates  # Return ALL matching courses
 
@@ -288,32 +279,29 @@ def main():
                     st.session_state.query = example_text
 
     query = st.text_area(
-        "📝 Décris le type de job ou de compétences que tu vises",
+        "📝 Décris le type de job ou de compétences que tu vises (optionnel)",
         value=st.session_state.query,
         height=200,
-        placeholder="Ex: Je veux travailler en data science, faire du machine learning, analyser des données...\n\nOu colle une offre d'emploi complète."
+        placeholder="Ex: Je veux travailler en data science, faire du machine learning, analyser des données...\n\nOu colle une offre d'emploi complète.\n\nℹ️ Laisse vide pour voir tous les cours (ordre alphabétique)."
     )
 
-    if st.button("Rechercher", type="primary", use_container_width=True):
-        if not query:
-            st.warning("Décris d'abord tes objectifs professionnels !")
-            return
-        with st.spinner("Recherche des cours optionnels correspondants..."):
+    if st.button("Afficher les cours", type="primary", use_container_width=True):
+        with st.spinner("Chargement des cours optionnels..."):
             results = search_courses(query, filters, emb, rerank, coll, bm25, data)
 
         if not results:
-            st.error("Aucun cours optionnel trouvé avec ces critères. Essaie un autre semestre ou niveau.")
+            st.error("Aucun cours optionnel trouvé pour cette section/semestre. Vérifie tes filtres.")
             return
 
-        st.success(f"✅ {len(results)} cours optionnel{'s' if len(results) > 1 else ''} trouvé{'s' if len(results) > 1 else ''}")
+        if query and query.strip():
+            st.success(f"✅ {len(results)} cours optionnel{'s' if len(results) > 1 else ''} (triés par pertinence)")
+        else:
+            st.info(f"📚 {len(results)} cours optionnel{'s' if len(results) > 1 else ''} disponible{'s' if len(results) > 1 else ''} (ordre alphabétique)")
 
         for i, r in enumerate(results, 1):
-            score_percent = 1 / (1 + math.exp(-(r['score'] + 6)))
-
-            # Display course with ranking
-            st.markdown(f"### {i}. [{r['meta']['title']}]({r['meta']['url']}) - **{score_percent*100:.1f}% match**")
+            # Display course with ranking (score hidden, but order preserved)
+            st.markdown(f"### {i}. [{r['meta']['title']}]({r['meta']['url']})")
             st.markdown(f"**🎓 {r['section']}** | **📅 {r['semester']}** | ⭐ Cours Optionnel")
-            st.progress(score_percent)
 
             with st.expander("📖 Voir le contenu du cours"):
                 st.write(r['content'][:500] + "...")
