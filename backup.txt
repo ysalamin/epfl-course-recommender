@@ -1,0 +1,656 @@
+def get_course_details(url):
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code != 200: return None
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # 1. TITRE
+        title_tag = soup.find('h1')
+        title = title_tag.get_text(strip=True) if title_tag else "Sans titre"
+        
+        # 2. PLANS D'ÉTUDES (Méthode CSS précise)
+        study_plans = []
+        plans_container = soup.find('div', class_='study-plans')
+        
+        if plans_container:
+            buttons = plans_container.find_all('button', class_='collapse-title')
+            for btn in buttons:
+                span_tag = btn.find('span')
+                if not span_tag: continue
+                
+                # Extraction Section et Niveau
+                full_btn_text = btn.get_text(strip=True)
+                span_text = span_tag.get_text(strip=True)
+                section_name = full_btn_text.replace(span_text, "").strip()
+                
+                level = "Autre"
+                if "Bachelor" in span_text: level = "Bachelor"
+                elif "Master" in span_text: level = "Master"
+                
+                # Extraction Type (avec Regex)
+                content_div = btn.find_next_sibling('div', class_='collapse-item')
+                course_type = "Inconnu"
+                
+                if content_div:
+                    block_text = content_div.get_text(separator="\n")
+                    # Regex pour capturer "Type: obligatoire" ou "Type: mandatory"
+                    match = re.search(r"(?i)Type\s*:\s*(.*)", block_text)
+                    if match:
+                        course_type = match.group(1).strip().lower()
+                
+                study_plans.append({
+                    "full_header": section_name,
+                    "niveau": level,
+                    "type": course_type
+                })
+
+        # Fallback si vide
+        if not study_plans:
+            study_plans.append({"full_header": "Général", "niveau": "Inconnu", "type": "Inconnu"})
+
+        # 3. CONTENU IA
+        main_content = soup.find('div', class_='main-content') or soup.find('main') or soup.body
+        relevant_text = ""
+        if main_content:
+            for junk in main_content.find_all(['nav', 'header', 'footer', 'form', 'script', 'style', 'div.study-plans']):
+                junk.decompose()
+            full_text = main_content.get_text(separator=" ", strip=True)
+            match_start = re.search(r"(Résumé|Summary|Contenu|Content)\s*[:\.]?", full_text, re.IGNORECASE)
+            start_index = match_start.start() if match_start else 0
+            relevant_text = full_text[start_index:2000]
+
+        return {
+            "url": url,
+            "titre": title,
+            "full_embedding_text": f"{title}. {relevant_text}",
+            "plans": study_plans
+        }
+
+    except Exception as e:
+        print(f"❌ Erreur {url}: {e}")
+        return None
+
+
+
+def main():
+    print("🚀 Démarrage du SCRAPER FINAL...")
+    
+    if not os.path.exists(INPUT_URLS_FILE):
+        print(f"❌ Fichier {INPUT_URLS_FILE} introuvable !")
+        return
+
+    with open(INPUT_URLS_FILE, "r", encoding="utf-8") as f:
+        urls = [line.strip() for line in f if line.strip()]
+
+    print(f"🎯 {len(urls)} cours à analyser.")
+    cours_data = []
+    
+    for i, url in enumerate(urls):
+        print(f"[{i+1}/{len(urls)}] {url.split('/')[-1][:40]}...")
+        details = get_course_details(url)
+        if details:
+            cours_data.append(details)
+        
+        if (i+1) % 50 == 0:
+            with open(OUTPUT_JSON_FILE, "w", encoding="utf-8") as f:
+                json.dump(cours_data, f, ensure_ascii=False, indent=4)
+        
+        time.sleep(0.1) 
+
+    with open(OUTPUT_JSON_FILE, "w", encoding="utf-8") as f:
+        json.dump(cours_data, f, ensure_ascii=False, indent=4)
+    print("✅ TERMINE ! Lance maintenant 'python indexer.py'")
+
+if __name__ == "__main__":
+    main()
+
+
+
+    import json
+import chromadb
+from sentence_transformers import SentenceTransformer
+import os
+
+# --- CONFIGURATION ---
+# On pointe vers le fichier final (assure-toi d'avoir lancé le scraper complet avec ce nom)
+INPUT_FILE = "../data/cours_data_final.json"
+DB_PATH = "../depfl_cours_db"
+COLLECTION_NAME = "cours_epfl"
+
+def main():
+    print(f"📂 Lecture du fichier : {INPUT_FILE} ...")
+    
+    if not os.path.exists(INPUT_FILE):
+        print(f"❌ Erreur : Le fichier {INPUT_FILE} est introuvable.")
+        print("💡 As-tu lancé le scraper complet ?")
+        return
+
+    with open(INPUT_FILE, "r", encoding="utf-8") as f:
+        cours_data = json.load(f)
+
+    print(f"   -> {len(cours_data)} cours bruts trouvés.")
+
+    # --- ÉTAPE 1 : DÉDOUBLONNAGE ---
+    # On garde la logique pour éviter d'avoir 2x le même cours
+    unique_courses = {}
+    
+    for cours in cours_data:
+        titre = cours['titre'].strip()
+        
+        # On ignore les cours vides
+        if not titre or titre == "Sans titre":
+            continue
+            
+        # Si on ne l'a pas encore, on l'ajoute
+        if titre not in unique_courses:
+            # PLUS DE NETTOYAGE ICI : On fait confiance au scraper !
+            unique_courses[titre] = cours
+    
+    clean_data = list(unique_courses.values())
+    print(f"✨ Nettoyage terminé : On passe de {len(cours_data)} à {len(clean_data)} cours uniques.")
+
+    # --- ÉTAPE 2 : PRÉPARATION DU CERVEAU (CHROMA) ---
+    print("🧠 Chargement du modèle IA (SentenceTransformer)...")
+    # On garde ce modèle, c'est le meilleur compromis vitesse/qualité
+    model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+    
+    chroma_client = chromadb.PersistentClient(path=DB_PATH)
+    
+    # Reset de la base pour repartir à zéro
+    try:
+        chroma_client.delete_collection(name=COLLECTION_NAME)
+        print("🗑️ Ancienne base supprimée.")
+    except:
+        pass 
+
+    collection = chroma_client.create_collection(name=COLLECTION_NAME)
+
+    # --- ÉTAPE 3 : INDEXATION PAR LOTS (BATCHING) ---
+    batch_size = 200
+    total = len(clean_data)
+    
+    print("⚙️ Création des vecteurs et enregistrement dans la base...")
+    
+    for i in range(0, total, batch_size):
+        batch = clean_data[i : i + batch_size]
+        
+        ids = [c["url"] for c in batch]
+        documents = [c["full_embedding_text"] for c in batch]
+        
+        # On prépare les métadonnées
+        # (C'est ici qu'on pourra ajouter le tag 'SHS' plus tard pour le filtre avancé)
+        metadatas = []
+        for c in batch:
+            # On récupère la liste 'plans', ou une liste vide si elle n'existe pas
+            plans_data = c.get("plans", [])
+            
+            # On transforme cette liste en TEXTE (string) pour que ChromaDB l'accepte
+            plans_str = json.dumps(plans_data) 
+            
+            metadatas.append({
+                "titre": c["titre"], 
+                "url": c["url"],
+                "plans_json": plans_str # On stocke la string JSON ici
+            })
+        # Vectorisation
+        embeddings = model.encode(documents).tolist()
+        
+        collection.add(
+            ids=ids,
+            embeddings=embeddings,
+            documents=documents,
+            metadatas=metadatas
+        )
+        print(f"   [{min(i + batch_size, total)}/{total}] cours indexés...")
+
+    print("🎉 SUCCÈS ! Base de données générée avec succès.")
+    print("👉 Tu peux maintenant lancer 'streamlit run app.py'")
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+import json
+import chromadb
+from sentence_transformers import SentenceTransformer
+import os
+
+# --- CONFIGURATION ---
+INPUT_FILE = "../data/cours_data_final.json"
+DB_PATH = "../depfl_cours_db"
+COLLECTION_NAME = "cours_epfl"
+
+def load_data(filepath):
+    """Charge le JSON et vérifie qu'il existe."""
+    if not os.path.exists(filepath):
+        print(f"❌ Erreur : Le fichier {filepath} est introuvable.")
+        return None
+    
+    with open(filepath, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    print(f"📂 {len(data)} cours chargés depuis {filepath}.")
+    return data
+
+def setup_chroma(db_path, collection_name):
+    """Initialise ChromaDB et nettoie l'ancienne base."""
+    client = chromadb.PersistentClient(path=db_path)
+    
+    # Reset complet pour éviter les doublons lors des tests
+    try:
+        client.delete_collection(name=collection_name)
+        print("🗑️ Ancienne collection supprimée.")
+    except:
+        pass # Elle n'existait pas, pas grave
+
+    collection = client.create_collection(name=collection_name)
+    return collection
+
+def main():
+    # 1. Chargement
+    cours_data = load_data(INPUT_FILE)
+    if not cours_data: return
+
+    # 2. Préparation IA & DB
+    print("🧠 Chargement du modèle IA (patience)...")
+    model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+    collection = setup_chroma(DB_PATH, COLLECTION_NAME)
+
+    # 3. Indexation par lots (Batching)
+    batch_size = 50 # On peut réduire un peu pour voir la progression plus souvent
+    total = len(cours_data)
+    
+    print(f"⚙️ Démarrage de l'indexation de {total} cours...")
+
+    for i in range(0, total, batch_size):
+        # On découpe une tranche de cours
+        batch = cours_data[i : i + batch_size]
+        
+        # Préparation des listes pour ChromaDB
+        ids = []
+        documents = []
+        metadatas = []
+
+        for cours in batch:
+            # --- CORRECTION DES CLES ICI ---
+            # On utilise .get() pour éviter le crash si une clé manque
+            url = cours.get("url")
+            titre = cours.get("title", "Sans titre") # <-- C'est 'title' maintenant
+            texte_ia = cours.get("content", "")      # <-- C'est 'content' maintenant
+            meta_list = cours.get("metadata", [])    # <-- C'est 'metadata' maintenant
+
+            if not url or not texte_ia: continue # On saute les cours cassés
+
+            ids.append(url)
+            documents.append(texte_ia)
+            
+            # Astuce : Chroma ne stocke pas de listes/dictionnaires dans les métadonnées.
+            # On doit transformer la liste des sections en une chaîne de caractères (JSON string)
+            meta_json = json.dumps(meta_list, ensure_ascii=False)
+            
+            metadatas.append({
+                "title": titre,
+                "url": url,
+                "metadata_json": meta_json 
+            })
+
+        # Si le batch n'est pas vide, on vectorise et on ajoute
+        if documents:
+            embeddings = model.encode(documents).tolist()
+            collection.add(
+                ids=ids,
+                documents=documents,
+                embeddings=embeddings,
+                metadatas=metadatas
+            )
+        
+        print(f"   [{min(i + batch_size, total)}/{total}] traités.")
+
+    print("🎉 Indexation terminée ! La base de données est prête dans le dossier 'depfl_cours_db'.")
+
+if __name__ == "__main__":
+    main()
+
+
+import streamlit as st
+import chromadb
+from sentence_transformers import SentenceTransformer, CrossEncoder
+from rank_bm25 import BM25Okapi
+import os
+import math
+import json
+
+# --- CONFIGURATION ---
+DB_PATH = "./epfl_cours_db"
+COLLECTION_NAME = "cours_epfl"
+
+st.set_page_config(page_title="EPFL Course Recommender", page_icon="🎓", layout="wide")
+
+# --- TA NOUVELLE LISTE COMPLETE ---
+# Note: J'ai ajouté quelques alias anglais courants (Computer Science, Communication Systems) 
+# pour t'assurer des résultats même si le scraper tombe sur la page EN.
+PROGRAMMES = {
+    "🌐 Tout explorer": (None, None),
+
+    # BACHELORS
+    "🏛️ Bachelor Architecture": (["Architecture"], "Bachelor"),
+    "🧪 Bachelor Chimie": (["Chimie"], "Bachelor"),
+    "⚗️ Bachelor Chimie et génie chimique": (["Chimie et génie chimique"], "Bachelor"),
+    "🏭 Bachelor Génie chimique": (["Génie chimique"], "Bachelor"),
+    "🏗️ Bachelor Génie civil": (["Génie civil", "Civil Engineering"], "Bachelor"),
+    "⚙️ Bachelor Génie mécanique": (["Génie mécanique", "Mechanical Engineering"], "Bachelor"),
+    "⚡ Bachelor Génie électrique": (["Génie électrique", "Electrical and Electronics"], "Bachelor"),
+    "💻 Bachelor Informatique": (["Informatique", "Computer Science"], "Bachelor"),
+    "🧬 Bachelor Sciences du vivant": (["Ingénierie des sciences du vivant", "Life Sciences"], "Bachelor"),
+    "🧮 Bachelor Mathématiques": (["Mathématiques", "Mathematics"], "Bachelor"),
+    "🔬 Bachelor Microtechnique": (["Microtechnique", "Microengineering"], "Bachelor"),
+    "⚛️ Bachelor Physique": (["Physique", "Physics"], "Bachelor"),
+    "🧱 Bachelor Matériaux": (["Science et génie des matériaux"], "Bachelor"),
+    "🌍 Bachelor Environnement": (["Science et ingénierie de l'environnement"], "Bachelor"),
+    "📡 Bachelor SysCom": (["Systèmes de communication", "Communication Systems"], "Bachelor"),
+
+    # MASTERS (J'ai gardé ta structure exacte)
+    "🏛️ Master Architecture": (["Architecture"], "Master"),
+    "🧪 Master Chimie moléculaire": (["Chimie moléculaire et biologique"], "Master"),
+    "📊 Master Data Science": (["Data Science"], "Master"),
+    "🏗️ Master Génie civil": (["Génie civil", "Civil Engineering"], "Master"),
+    "⚙️ Master Génie mécanique": (["Génie mécanique", "Mechanical Engineering"], "Master"),
+    "☢️ Master Génie nucléaire": (["Génie nucléaire", "Nuclear Engineering"], "Master"),
+    "⚡ Master Génie électrique": (["Génie électrique", "Electrical and Electronics"], "Master"),
+    "📜 Master Humanités digitales": (["Humanités digitales", "Digital Humanities"], "Master"),
+    "💻 Master Informatique": (["Informatique", "Computer Science"], "Master"),
+    "🛡️ Master Cybersec": (["Informatique - Cybersecurity", "Cyber security"], "Master"),
+    "🧬 Master Sciences du vivant": (["Ingénierie des sciences du vivant", "Life Sciences"], "Master"),
+    "💰 Master Ingénierie financière": (["Ingénierie financière", "Financial Engineering"], "Master"),
+    "🧮 Master Ingénierie mathématique": (["Ingénierie mathématique"], "Master"),
+    "⚛️ Master Ingénierie physique": (["Ingénierie physique"], "Master"),
+    "🌱 Master Management durable": (["Management durable et technologie"], "Master"),
+    "🚀 Master Management & Tech": (["Management, technologie et entrepreneuriat"], "Master"),
+    "📐 Master Mathématiques": (["Mathématiques"], "Master"),
+    "🔬 Master Micro-Nanotech": (["Micro- and Nanotechnologies"], "Master"),
+    "🔬 Master Microtechnique": (["Microtechnique", "Microengineering"], "Master"),
+    "🧠 Master Neuro-X": (["Neuro-X"], "Master"),
+    "⚛️ Master Physique": (["Physique"], "Master"),
+    "🤖 Master Robotique": (["Robotique", "Robotics"], "Master"),
+    "🧱 Master Matériaux": (["Science et génie des matériaux"], "Master"),
+    "💻 Master Computational Science": (["Science et ingénierie computationnelles"], "Master"),
+    "🌌 Master Quantique": (["Science et ingénierie quantiques"], "Master"),
+    "🔋 Master Energie": (["Science et technologie de l'énergie", "Energy"], "Master"),
+    "🌍 Master Environnement": (["Sciences et ingénierie de l'environnement"], "Master"),
+    "📈 Master Statistique": (["Statistique"], "Master"),
+    "📡 Master SysCom": (["Systèmes de communication", "Communication Systems"], "Master"),
+    "🏙️ Master Systèmes urbains": (["Systèmes urbains"], "Master"),
+}
+
+# --- CHARGEMENT ---
+def sigmoid(x): return 1 / (1 + math.exp(-(x + 6)))
+
+@st.cache_resource
+def load_models():
+    return SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2'), CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+
+@st.cache_resource
+def load_db_collection():
+    return chromadb.PersistentClient(path=DB_PATH).get_collection(name=COLLECTION_NAME)
+
+@st.cache_resource
+def init_bm25(documents):
+    return BM25Okapi([doc.split(" ") for doc in documents])
+
+try:
+    with st.spinner("Chargement..."):
+        sentence_transformer, model_reranker = load_models()
+        collection = load_db_collection()
+        all_docs = collection.get()
+        documents_list = all_docs['documents']
+        ids_list = all_docs['ids']
+        metadatas_list = all_docs['metadatas']
+        bm25_engine = init_bm25(documents_list)
+except Exception as e:
+    st.error(f"Erreur DB : {e}")
+    st.stop()
+
+# --- INTERFACE ---
+with st.sidebar:
+    st.header("👤 Votre Profil")
+    
+    # 1. Le sélecteur de programme
+    selected_program_name = st.selectbox("Programme", options=list(PROGRAMMES.keys()), index=0) # index 0 pour "Tout explorer" par défaut
+    target_aliases, target_level = PROGRAMMES[selected_program_name]
+    
+    st.markdown("---")
+    st.header("⚙️ Paramètres de recherche")
+    top_k = st.slider("Nombre de résultats max", min_value=5, max_value=100, value=10, step=5)    # 2. Section Debug améliorée
+
+
+st.title("🎓 EPFL Course Recommender")
+job_offer = st.text_area("📋 Ce que vous cherchez...", height=100)
+search_btn = st.button("🚀 Trouver les cours", type="primary", use_container_width=True)
+
+# --- LOGIQUE ---
+if search_btn and job_offer:
+    with st.spinner("Recherche..."):
+        # 1. Retrieval
+        query_vector = sentence_transformer.encode(job_offer).tolist()
+        
+        # ON UTILISE top_k * 2 pour avoir de la marge pour le filtrage
+        limit_search = top_k * 2 
+        
+        v_results = collection.query(query_embeddings=[query_vector], n_results=limit_search)
+        v_ids = v_results['ids'][0] if v_results['ids'] else []
+        
+        bm25_top = bm25_engine.get_top_n(job_offer.split(" "), documents_list, n=limit_search)
+        bm25_ids = [ids_list[documents_list.index(d)] for d in bm25_top if d in documents_list]
+        
+        all_ids = list(set(v_ids + bm25_ids))
+        candidates, final_ids, final_metas = [], [], []
+
+        # 2. Filtering
+        for doc_id in all_ids:
+            try:
+                idx = ids_list.index(doc_id)
+                meta = metadatas_list[idx]
+                plans = json.loads(meta.get('plans_json', '[]'))
+                
+                keep = False
+                badge = ""
+                
+                if target_aliases is None: # Tout explorer
+                    keep = True
+                else:
+                    # Vérification LISTE alias
+                    for plan in plans:
+                        p_head = plan.get('full_header', '').lower()
+                        p_lvl = plan.get('niveau', '').lower()
+                        
+                        # On vérifie si UN des alias (ex: "informatique" OU "computer science") est dans le header
+                        match_section = any(alias.lower() in p_head for alias in target_aliases)
+                        match_level = target_level.lower() in p_lvl
+                        
+                        if match_section and match_level:
+                            keep = True
+                            badge = plan.get('type', 'Inconnu')
+                            break
+                
+                if keep:
+                    if "Summer workshop" in meta['titre']: continue
+                    candidates.append([job_offer, documents_list[idx]])
+                    final_ids.append(doc_id)
+                    meta['badge'] = badge
+                    final_metas.append(meta)
+            except: continue
+
+        # 3. Reranking & Display
+        if candidates:
+            scores = model_reranker.predict(candidates)
+            ranked = sorted(zip(scores, final_ids, final_metas, candidates), key=lambda x: x[0], reverse=True)
+            
+            st.success(f"{len(ranked)} cours trouvés")
+            for i in range(min(top_k, len(ranked))):
+                score, did, meta, content = ranked[i]
+                badge_txt = meta.get('badge', '')
+                color = "red" if "bligatoire" in badge_txt or "andatory" in badge_txt else "green"
+                
+                st.markdown(f"### [{meta['titre']}]({did})")
+                if badge_txt: st.caption(f":{color}[{badge_txt}]")
+                st.progress(sigmoid(score), text=f"Pertinence: {sigmoid(score):.0%}")
+                with st.expander("Détails"):
+                    st.write(content[1][:400]+"...")
+                st.divider()
+        else:
+            st.warning("Aucun cours trouvé.")
+
+
+import streamlit as st
+import chromadb
+from sentence_transformers import SentenceTransformer, CrossEncoder
+from rank_bm25 import BM25Okapi
+
+# Constantes
+DB_PATH = "./epfl_cours_db"
+COLLECTION_NAME = "cours_epfl"
+
+# Cache pour ne pas recharger l'IA à chaque clic (Hyper important)
+@st.cache_resource
+def load_resources():
+    # 1. Embedder (Recherche vectorielle)
+    embedder = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+    
+    # 2. Reranker (Juge de pertinence final)
+    reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+    
+    # 3. Base de données
+    client = chromadb.PersistentClient(path=DB_PATH)
+    collection = client.get_collection(name=COLLECTION_NAME)
+    
+    # 4. Chargement pour BM25 (Mots-clés exacts)
+    # On doit tout récupérer en mémoire pour BM25 (c'est rapide pour 2000 cours)
+    all_docs = collection.get()
+    bm25 = BM25Okapi([doc.split() for doc in all_docs['documents']])
+    
+    return embedder, reranker, collection, bm25, all_docs
+
+    import json
+
+def search_courses( ):
+    # 1. RETRIEVAL (Récupération large)
+    # A. Vectoriel (Sens)
+    q_vec = embedder.encode(query).tolist()
+    vec_res = collection.query(query_embeddings=[q_vec], n_results=top_k * 2)
+    vec_ids = set(vec_res['ids'][0])
+
+    # B. BM25 (Mots-clés)
+    # On récupère les indices des documents
+    bm25_top = bm25.get_top_n(query.split(), all_data['documents'], n=top_k * 2)
+    bm25_ids = set()
+    for doc in bm25_top:
+        idx = all_data['documents'].index(doc)
+        bm25_ids.add(all_data['ids'][idx])
+
+    # Fusion des candidats
+    candidates_ids = list(vec_ids.union(bm25_ids))
+
+    # 2. FILTRAGE (Logique métier)
+    filtered_candidates = []
+    
+    target_aliases, target_level = program_filter # Ex: (['Informatique'], 'Master')
+
+    for cid in candidates_ids:
+        idx = all_data['ids'].index(cid)
+        meta = all_data['metadatas'][idx]
+        
+        # On décode le JSON string des métadonnées
+        plans = json.loads(meta.get('metadata', '[]')) # Attention à la clé 'metadata' vs 'plans_json' selon ton indexeur
+        
+        # Logique de match (si aucun filtre, on garde tout)
+        is_match = False
+        badge = ""
+
+        if target_aliases is None:  
+            is_match = True
+        else:
+            for p in plans:
+                # Vérifie section et niveau
+                sec = p.get('section', '').lower()
+                lvl = p.get('level', '').lower()
+                
+                # Vérifie si l'une des sections cibles est présente
+                sec_match = any(alias.lower() in sec for alias in target_aliases)
+                lvl_match = target_level.lower() in lvl
+                
+                if sec_match and lvl_match:
+                    is_match = True
+                    badge = "Obligatoire" if p.get('isMandatory') else "Optionnel"
+                    break
+        
+        if is_match:
+            filtered_candidates.append({
+                "id": cid,
+                "content": all_data['documents'][idx],
+                "meta": meta,
+                "badge": badge
+            })
+
+    # 3. RERANKING (Classement fin)
+    if not filtered_candidates:
+        return []
+
+    # On prépare les paires [Query, Document] pour le CrossEncoder
+    pairs = [[query, c['content']] for c in filtered_candidates]
+    scores = reranker.predict(pairs)
+
+    # On trie par score décroissant
+    final_results = []
+    for i, score in enumerate(scores):
+        res = filtered_candidates[i]
+        res['score'] = score
+        final_results.append(res)
+    
+    final_results.sort(key=lambda x: x['score'], reverse=True)
+    
+    return final_results[:top_k]
+
+
+# ... (Imports et PROGRAMMES dict ici) ...
+
+def main():
+    st.title("🎓 EPFL Course Matcher")
+    
+    # Sidebar
+    with st.sidebar:
+        st.header("Filtres")
+        prog_name = st.selectbox("Programme", list(PROGRAMMES.keys()))
+        filters = PROGRAMMES[prog_name]
+        k = st.slider("Nombre de résultats", 5, 50, 10)
+
+    # Chargement (Une seule fois grâce au cache)
+    emb, rerank, col, bm25, data = load_resources()
+
+    # Input
+    query = st.text_area("Décris ton job de rêve ou tes intérêts :", height=100)
+
+    if st.button("🚀 Rechercher"):
+        if not query:
+            st.warning("Écris quelque chose !")
+            return
+        
+        with st.spinner("Analyse en cours..."):
+            results = search_courses(query, filters, emb, rerank, col, bm25, data, k)
+        
+        st.success(f"{len(results)} cours trouvés")
+        
+        for r in results:
+            score_percent = 1 / (1 + math.exp(-(r['score'] + 6))) # Sigmoid simple
+            color = "red" if "bligatoire" in r['badge'] else "green"
+            
+            st.markdown(f"### [{r['meta']['title']}]({r['meta']['url']})")
+            st.caption(f":{color}[{r['badge']}] • Pertinence : {score_percent:.0%}")
+            st.progress(score_percent)
+            with st.expander("Voir l'extrait"):
+                st.write(r['content'][:400] + "...")
+            st.divider()
+
+if __name__ == "__main__":
+    main()
