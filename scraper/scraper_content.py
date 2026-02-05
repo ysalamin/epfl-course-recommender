@@ -18,10 +18,32 @@ def get_course_details(url):
         # Retrieving the title of the course
         title_tag = soup.find("h1")
         title = title_tag.get_text(strip=True) if title_tag else "No title"
-        
+
+        # Extract semester (Fall/Spring) - same for all study plans
+        semester = "Unknown"
+        plans_container = soup.find("div", class_="study-plans")
+        if plans_container:
+            # Find the first collapse-item to extract semester
+            first_collapse = plans_container.find("div", class_="collapse-item")
+            if first_collapse:
+                # Look for <strong>Semestre:</strong> or <strong>Semester:</strong>
+                for strong_tag in first_collapse.find_all("strong"):
+                    strong_text = strong_tag.get_text(strip=True).lower()
+                    if "semestre" in strong_text or "semester" in strong_text:
+                        # Get the text after the strong tag
+                        next_text = strong_tag.next_sibling
+                        if next_text:
+                            semester_raw = next_text.strip() if isinstance(next_text, str) else next_text.get_text(strip=True)
+                            # Normalize to Fall or Spring
+                            semester_lower = semester_raw.lower()
+                            if "automne" in semester_lower or "fall" in semester_lower:
+                                semester = "Fall"
+                            elif "printemps" in semester_lower or "spring" in semester_lower:
+                                semester = "Spring"
+                        break
+
         # Examples : Bachelor Syscom, Bachelor info, Master Data science...
         course_metadata = []
-        plans_container = soup.find("div", class_="study-plans")
 
         if plans_container:
             accordeons = plans_container.find_all("button", class_="collapse-title")
@@ -38,27 +60,33 @@ def get_course_details(url):
                 if "Master" in span_text: level = "Master"
                 elif "Bachelor" in span_text: level = "Bachelor"
 
-                # Mandatory / Optional extraction
-                is_mandatory = False
+                # Mandatory / Optional extraction - store as string
+                course_type = "Unknown"
                 accordeon_content_div = accordeon.find_next_sibling("div", class_="collapse-item")
                 if accordeon_content_div:
                     # Look for "obligatoire" or "optionnel" in the list items
                     all_text = accordeon_content_div.get_text().lower()
                     if "obligatoire" in all_text or "mandatory" in all_text:
-                        is_mandatory = True
+                        course_type = "Obligatoire"
                     elif "optionnel" in all_text or "optional" in all_text:
-                        is_mandatory = False
+                        course_type = "Optionnel"
 
                 course_metadata.append({
                     "level": level,
                     "section": section_name,
-                    "isMandatory": is_mandatory
+                    "type": course_type,
+                    "semester": semester
                 })
 
 
         # Fallback if empty
         if not course_metadata:
-            course_metadata.append({"level": "unknown", "section": "unknown", "isMandatory": "unknown"})
+            course_metadata.append({
+                "level": "unknown",
+                "section": "unknown",
+                "type": "unknown",
+                "semester": "Unknown"
+            })
 
         # Content to be vectorize (main content, document)
         content_div = soup.find("div", class_="course-details")
