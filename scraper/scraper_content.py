@@ -21,10 +21,10 @@ def get_course_details(url):
         
         # Examples : Bachelor Syscom, Bachelor info, Master Data science...
         course_metadata = []
-        plans_container = soup.find("h1", class_="study-plans")
+        plans_container = soup.find("div", class_="study-plans")
 
         if plans_container:
-            accordeons = soup.find_all("button", class_="collapse-title")
+            accordeons = plans_container.find_all("button", class_="collapse-title")
             for accordeon in accordeons:
                 span_tag = accordeon.find("span")
                 if not span_tag: continue
@@ -32,26 +32,27 @@ def get_course_details(url):
                 # Extraction Section (Syscom) and level(Master)
                 full_accordeon_text = accordeon.get_text(strip=True)
                 span_text = span_tag.getText(strip=True)
-                section_name = full_accordeon_text.replace(span_text, "")
+                section_name = full_accordeon_text.replace(span_text, "").strip()
 
                 level = "Autre"
                 if "Master" in span_text: level = "Master"
-                elif "Bachelor" in span_text: level = "Bachelor" 
+                elif "Bachelor" in span_text: level = "Bachelor"
 
                 # Mandatory / Optional extraction
-                type_str = ""
+                is_mandatory = False
                 accordeon_content_div = accordeon.find_next_sibling("div", class_="collapse-item")
                 if accordeon_content_div:
-                    strong_tag = accordeon_content_div.find("strong", string="Type:")
-                    if strong_tag:
-                        type_tag = strong_tag.next_sibling
-                        if type_tag:
-                            type_str = type_tag.strip()
+                    # Look for "obligatoire" or "optionnel" in the list items
+                    all_text = accordeon_content_div.get_text().lower()
+                    if "obligatoire" in all_text or "mandatory" in all_text:
+                        is_mandatory = True
+                    elif "optionnel" in all_text or "optional" in all_text:
+                        is_mandatory = False
 
                 course_metadata.append({
                     "level": level,
                     "section": section_name,
-                    "isMandatory": type_str.lower() in ["obligatoire", "mandatory"]
+                    "isMandatory": is_mandatory
                 })
 
 

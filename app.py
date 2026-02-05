@@ -9,6 +9,88 @@ import json
 DB_PATH = "./epfl_cours_db"
 COLLECTION_NAME = "cours_epfl"
 
+JOB_EXAMPLES = {
+    "📊 Data Scientist": """Position: Senior Data Scientist
+Location: Lausanne
+We are looking for an expert in Machine Learning and Big Data.
+Responsibilities:
+- Build predictive models using Scikit-Learn, PyTorch, and TensorFlow.
+- Process large datasets with Spark and Hadoop.
+- Implement Natural Language Processing (NLP) pipelines.
+- Strong background in Statistics, Probability, and Linear Algebra.""",
+
+    "☁️ DevOps / Cloud": """Position: DevOps Engineer
+Location: Zurich
+Join our infrastructure team to scale our SaaS platform.
+Skills Required:
+- CI/CD pipelines (Jenkins, GitLab CI, GitHub Actions).
+- Container orchestration with Docker and Kubernetes (K8s).
+- Infrastructure as Code (Terraform, Ansible).
+- Cloud platforms: AWS (EC2, Lambda, S3) or Azure.
+- Monitoring with Prometheus and Grafana.
+- Scripting in Bash and Go.""",
+
+    "🧬 Biomedical Eng.": """Position: R&D Biomedical Engineer
+Location: Geneva
+Design the next generation of medical devices.
+Key Skills:
+- Biosignal processing (EEG, ECG, EMG) using Matlab/Python.
+- Biomechanics and prosthetics design.
+- Regulatory standards (ISO 13485, FDA).
+- Medical imaging analysis (MRI, CT-Scan).
+- Microfluidics and Lab-on-a-chip technologies.""",
+
+    "⚡ Electrical Eng.": """Position: Hardware / Electrical Engineer
+Location: Neuchatel
+Develop high-performance electronic systems.
+Requirements:
+- PCB Design and layout (Altium Designer, KiCad).
+- FPGA programming (VHDL / Verilog).
+- Embedded systems (C/C++, STM32, Microcontrollers).
+- Signal processing and analog circuit design.
+- Power electronics and battery management systems (BMS).""",
+
+    "⚙️ Mechanical Eng.": """Position: Mechanical Design Engineer
+Location: Bern
+Focus on precision engineering and robotics.
+Responsibilities:
+- 3D CAD modeling (SolidWorks, CATIA, Siemens NX).
+- Finite Element Analysis (FEA) and structural simulation (ANSYS).
+- Thermodynamics and Heat Transfer analysis.
+- Fluid mechanics and aerodynamics (CFD).
+- Rapid prototyping and additive manufacturing.""",
+
+    "🏗️ Civil Eng.": """Position: Structural Civil Engineer
+Location: Fribourg
+Design sustainable infrastructure and buildings.
+Skills:
+- Structural analysis of reinforced concrete and steel.
+- Geotechnical engineering and soil mechanics.
+- BIM (Building Information Modeling) with Revit or Civil 3D.
+- Hydraulics and hydrology for urban water management.
+- Environmental impact assessment.""",
+
+    "🏛️ Architecture": """Position: Architect / Urban Planner
+Location: Basel
+Create innovative sustainable living spaces.
+Skills:
+- Architectural design and theory.
+- Parametric design (Rhino, Grasshopper).
+- Sustainable urban planning and landscape architecture.
+- Heritage conservation and restoration.
+- Graphic representation and rendering.""",
+
+    "🧪 Materials Science": """Position: Materials R&D Engineer
+Location: Sion
+Develop novel materials for energy applications.
+Skills:
+- Characterization techniques (SEM, XRD, Spectroscopy).
+- Polymer science and composite materials.
+- Metallurgy and ceramics.
+- Nanotechnology and surface functionalization.
+- Photovoltaics and semiconductor physics."""
+}
+
 st.set_page_config("EPFL Course Recommender", page_icon="🎓", layout="wide")
 
 PROGRAMMES = {
@@ -101,29 +183,45 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
     filtered_candidates = []
     target_aliases, target_level = filters
 
+    print(f"\n{'='*80}")
+    print(f"🔍 FILTRES ACTIFS: target_aliases={target_aliases}, target_level={target_level}")
+    print(f"📊 Nombre de candidats combinés: {len(combined_ids)}")
+    print(f"{'='*80}\n")
+
     for cid in combined_ids:
         if cid not in all_data['ids']: continue
         dbIdx = all_data['ids'].index(cid)
         meta = all_data['metadatas'][dbIdx]
         plans = json.loads(meta.get('metadata', '[]'))
 
+        print(f"\n--- Cours ID: {cid} | Titre: {meta.get('title', 'N/A')[:50]}... ---")
+        print(f"Plans trouvés: {plans}")
+
         isMatch = False
         badge = ""
 
         if target_aliases is None:
             isMatch = True
+            print(f"✓ Mode 'Tout explorer' - isMatch=True")
         else:
-            for p in plans:
+            for i, p in enumerate(plans):
                 sec = p.get('section', '').lower()
                 lvl = p.get('level', '').lower()
 
                 sec_match = any(alias.lower() in sec for alias in target_aliases)
                 lvl_match = target_level.lower() in lvl
 
+                print(f"  Plan {i+1}: section='{sec}', level='{lvl}'")
+                print(f"    → sec_match={sec_match}, lvl_match={lvl_match}")
+
                 if sec_match and lvl_match:
                     isMatch = True
                     badge = "Obligatoire" if p.get('isMandatory') else "Optionnel"
+                    print(f"    ✓ MATCH TROUVÉ ! Badge: {badge}")
                     break
+
+        print(f"Résultat final: isMatch={isMatch}")
+
         if isMatch:
             filtered_candidates.append(
                 {
@@ -170,7 +268,33 @@ def main():
 
     emb, rerank, coll, bm25, data = load_resources()
 
-    query = st.text_area("Colle une offre d'emploi que tu vises")
+    # Initialize session state for query
+    if 'query' not in st.session_state:
+        st.session_state.query = ""
+
+    # Example buttons (2 rows of 4)
+    st.markdown("**Exemples de test :**")
+    examples_list = list(JOB_EXAMPLES.items())
+
+    # First row (4 buttons)
+    cols1 = st.columns(4)
+    for i in range(4):
+        if i < len(examples_list):
+            label, example_text = examples_list[i]
+            with cols1[i]:
+                if st.button(label, use_container_width=True, key=f"btn_{i}"):
+                    st.session_state.query = example_text
+
+    # Second row (4 buttons)
+    cols2 = st.columns(4)
+    for i in range(4, 8):
+        if i < len(examples_list):
+            label, example_text = examples_list[i]
+            with cols2[i-4]:
+                if st.button(label, use_container_width=True, key=f"btn_{i}"):
+                    st.session_state.query = example_text
+
+    query = st.text_area("Colle une offre d'emploi que tu vises", value=st.session_state.query, height=200)
 
     if st.button("Rechercher"):
         if not query:
@@ -182,7 +306,7 @@ def main():
         for r in results:
             score_percent =  1 / (1 + math.exp(-(r['score'] + 6)))
             color = "red" if r['badge'] == "Obligatoire" else "green"
-            st.markdown(f"### [{r['meta']['title']}({r['meta']['url']})]")
+            st.markdown(f"### [{r['meta']['title']}]({r['meta']['url']}) - **{score_percent*100:.1f}% match**")
             st.progress(score_percent)
             with st.expander("Voir plus"):
                 st.write(r['content'][:400] + "...")
