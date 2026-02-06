@@ -1,5 +1,7 @@
 # 🎓 EPFL Course Recommender
 
+![App preview](demo.png)
+
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Streamlit](https://img.shields.io/badge/streamlit-1.52.2-FF4B4B.svg)](https://streamlit.io)
 [![ChromaDB](https://img.shields.io/badge/ChromaDB-1.4.0-orange.svg)](https://www.trychroma.com/)
