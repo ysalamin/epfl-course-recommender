@@ -4,3 +4,5 @@ __pycache__/
 epfl_cours_db/
 venv/
 .DS_Store
+.claude/
+CLAUDE.md
