@@ -9,8 +9,8 @@ import json
 DB_PATH = "./epfl_cours_db"
 COLLECTION_NAME = "cours_epfl"
 
-# Allowlist for sections (Bachelor + Master)
-ALLOWED_SECTIONS_BACHELOR = [
+# Allowlist for sections (separate Bachelor and Master lists)
+BACHELOR_SECTIONS = [
     'Architecture', 'Chimie', 'Chimie et génie chimique', 'Génie chimique',
     'Génie civil', 'Génie mécanique', 'Génie électrique et électronique',
     'Informatique', 'Ingénierie des sciences du vivant', 'Mathématiques',
@@ -18,7 +18,7 @@ ALLOWED_SECTIONS_BACHELOR = [
     'Sciences et ingénierie de l\'environnement', 'Systèmes de communication'
 ]
 
-ALLOWED_SECTIONS_MASTER = [
+MASTER_SECTIONS = [
     'Architecture', 'Chimie moléculaire et biologique', 'Data Science',
     'Génie chimique et biotechnologie', 'Génie civil', 'Génie mécanique',
     'Génie nucléaire', 'Génie électrique et électronique', 'Humanités digitales',
@@ -31,9 +31,6 @@ ALLOWED_SECTIONS_MASTER = [
     'Science et ingénierie quantiques', 'Science et technologie de l\'énergie',
     'Sciences et ingénierie de l\'environnement', 'Statistique', 'Systèmes urbains'
 ]
-
-# Union of both lists (sorted alphabetically)
-ALLOWED_SECTIONS = sorted(list(set(ALLOWED_SECTIONS_BACHELOR + ALLOWED_SECTIONS_MASTER)))
 
 JOB_EXAMPLES = {
     "📊 Data Scientist": """Position: Senior Data Scientist
@@ -136,20 +133,14 @@ def load_resources():
     return embedder, reranker, collection, bm25, all_docs
 
 
-@st.cache_data
-def get_filtered_sections(all_data):
-    """Extract unique sections from metadata, filtered by allowlist"""
-    sections = set()
-
-    for meta in all_data['metadatas']:
-        plans = json.loads(meta.get('metadata', '[]'))
-        for plan in plans:
-            section = plan.get('section', '').strip()
-            # Only include sections that are in the allowlist
-            if section in ALLOWED_SECTIONS:
-                sections.add(section)
-
-    return sorted(list(sections))
+def get_sections_for_level(level):
+    """Return the appropriate section list based on level"""
+    if level == "Bachelor":
+        return BACHELOR_SECTIONS
+    elif level == "Master":
+        return MASTER_SECTIONS
+    else:
+        return []
 
 
 def search_courses(query, filters, embedder, reranker, collection, bm25, all_data):
@@ -276,18 +267,14 @@ def main():
         else:
             st.info(f"📚 **{level}**")
 
-        # Section selection (filtered by allowlist)
-        available_sections = get_filtered_sections(data)
+        # Section selection (dynamic based on level)
+        available_sections = get_sections_for_level(level)
 
-        if not available_sections:
-            st.error("Aucune section disponible dans les données")
-            section = None
-        else:
-            section = st.selectbox(
-                "Section / Programme",
-                available_sections,
-                help="Sections filtrées selon le programme officiel EPFL"
-            )
+        section = st.selectbox(
+            "Section / Programme",
+            available_sections,
+            help=f"Sections disponibles pour {level}"
+        )
 
         filters = (level, section, semester_filter)
 
