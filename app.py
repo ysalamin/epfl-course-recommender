@@ -1,9 +1,18 @@
+import streamlit as st
 from sentence_transformers import SentenceTransformer, CrossEncoder
 import chromadb
 from rank_bm25 import BM25Okapi
-import streamlit as st
 import math
 import json
+import re
+
+# Must be first Streamlit command
+st.set_page_config(
+    page_title="EPFL Course Recommender",
+    page_icon="🎓",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # CONST
 DB_PATH = "./epfl_cours_db"
@@ -114,7 +123,6 @@ Skills:
 - Photovoltaics and semiconductor physics."""
 }
 
-st.set_page_config("EPFL Course Recommender", page_icon="🎓", layout="wide")
 @st.cache_resource
 def load_resources():
 
@@ -141,6 +149,84 @@ def get_sections_for_level(level):
         return MASTER_SECTIONS
     else:
         return []
+
+
+def parse_course_metadata(content):
+    """Extract course code, credits, and professor from content"""
+    metadata = {
+        "code": "N/A",
+        "credits": "N/A",
+        "professor": "Non spécifié",
+        "language": "Non spécifié"
+    }
+
+    # Extract course code (e.g., "MATH-518", "ME-202")
+    code_match = re.search(r'\b([A-Z]+-\d+)\b', content)
+    if code_match:
+        metadata["code"] = code_match.group(1)
+
+    # Extract credits (e.g., "5 crédits")
+    credits_match = re.search(r'(\d+)\s+crédits?', content, re.IGNORECASE)
+    if credits_match:
+        metadata["credits"] = credits_match.group(1)
+
+    # Extract professor name - stop at next keyword to avoid capturing full description
+    # Match "Enseignant:" followed by text until we hit "Langue", "Résumé", "Summary", "Content", etc.
+    prof_match = re.search(r'Enseignant[:\s]+(.+?)(?=\s+(?:Langue|Résumé|Summary|Content|Contenu|Lire|Keywords|Mots-clés)[:.\s])', content, re.IGNORECASE)
+    if prof_match:
+        professor = prof_match.group(1).strip()
+        # Additional safety check: if still too long, truncate
+        if len(professor) > 60:
+            metadata["professor"] = "Non spécifié"
+        else:
+            metadata["professor"] = professor
+
+    # Extract language - stop at next keyword
+    lang_match = re.search(r'Langue[:\s]+(.+?)(?=\s+(?:Résumé|Summary|Content|Contenu|Enseignant|Lire|Keywords|Mots-clés)[:.\s])', content, re.IGNORECASE)
+    if lang_match:
+        language = lang_match.group(1).strip()
+        # Additional safety check: language should be short (Français, Anglais, etc.)
+        if len(language) > 30:
+            metadata["language"] = "Non spécifié"
+        else:
+            metadata["language"] = language
+
+    return metadata
+
+
+def calculate_score_percentage(score):
+    """
+    Convert reranker score to user-friendly percentage using sigmoid
+
+    ADJUSTED FOR REAL-WORLD RERANKER SCORES:
+    In practice, reranker scores are often very negative (-12 to -6 range)
+    even for decent matches, especially with multilingual content.
+
+    New mapping (pivot at -10):
+    - Very poor (< -12): 15-35%
+    - Poor (-12 to -10): 35-55%
+    - Average (-10 to -8): 55-75%
+    - Good (-8 to -6): 75-90%
+    - Excellent (> -6): 90-99%
+
+    Formula: sigmoid(0.5 * (score + 10))
+    Pivot at score=-10 (scores above -10 get >50%, below get <50%)
+    """
+    # Handle edge cases
+    if score is None:
+        return 0.5  # Default to 50%
+
+    # Very gentle sigmoid optimized for negative score ranges
+    # k=0.5 for gentle slope, pivot at -10 for realistic reranker scores
+    try:
+        result = 1 / (1 + math.exp(-0.5 * (score + 10)))
+        return max(0.15, min(0.99, result))  # Clamp between 15% and 99%
+    except (OverflowError, ValueError):
+        # Handle extreme values
+        if score > 0:
+            return 0.99
+        else:
+            return 0.15
 
 
 def search_courses(query, filters, embedder, reranker, collection, bm25, all_data):
@@ -216,8 +302,14 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
         pairs = [[query, candidate["content"]] for candidate in filtered_candidates]
         scores = reranker.predict(pairs)
 
+        print(f"🔍 DEBUG - Reranker Scores Statistics:")
+        print(f"   Min score: {min(scores):.4f}")
+        print(f"   Max score: {max(scores):.4f}")
+        print(f"   Mean score: {sum(scores)/len(scores):.4f}\n")
+
         for candidate, score in zip(filtered_candidates, scores):
             candidate['score'] = score
+            print(f"   📊 {candidate['meta']['title'][:40]:40s} | Raw: {score:7.4f}")
 
         # Sort by relevance score (highest first)
         filtered_candidates.sort(key=lambda x: x['score'], reverse=True)
@@ -232,19 +324,22 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
 
 
 def main():
-    st.title("EPFL Course Matcher 🎓")
-    st.markdown("**Trouve les cours optionnels qui matchent avec tes objectifs professionnels**")
+    st.title("🎓 EPFL Course Recommender")
+    st.markdown("### Trouve les cours optionnels qui matchent avec tes objectifs professionnels")
+    st.markdown("---")
 
     # Load resources first
     emb, rerank, coll, bm25, data = load_resources()
 
-    # Sidebar
+    # Sidebar with improved design
     with st.sidebar:
-        st.header("Filtres")
+        st.markdown("# 🔍 Filtres")
+        st.markdown("Personnalise ta recherche de cours")
+        st.markdown("---")
 
         # Semester selection (implicitly determines level)
         semester_choice = st.selectbox(
-            "Semestre",
+            "📅 Semestre",
             ["BA3", "BA4", "BA5", "BA6", "MA"],
             help="BA = Bachelor, MA = Master"
         )
@@ -263,20 +358,37 @@ def main():
 
         # Show derived information
         if semester_filter:
-            st.info(f"📚 **{level}**\n📅 Semestre: {semester_filter}")
+            st.success(f"**Niveau:** {level}\n\n**Période:** {semester_filter}")
         else:
-            st.info(f"📚 **{level}**")
+            st.success(f"**Niveau:** {level}")
 
         # Section selection (dynamic based on level)
         available_sections = get_sections_for_level(level)
 
         section = st.selectbox(
-            "Section / Programme",
+            "🎯 Section / Programme",
             available_sections,
             help=f"Sections disponibles pour {level}"
         )
 
+        st.markdown("---")
+
+        # Reset button
+        if st.button("🔄 Réinitialiser", use_container_width=True, help="Réinitialise la recherche"):
+            st.session_state.query = ""
+            st.rerun()
+
         filters = (level, section, semester_filter)
+
+        # Info section
+        st.markdown("---")
+        st.markdown("### 💡 Comment ça marche ?")
+        st.markdown("""
+        1. **Choisis** ton semestre
+        2. **Sélectionne** ta section
+        3. **Décris** ton job de rêve
+        4. **Découvre** les cours pertinents
+        """)
 
     # Initialize session state for query
     if 'query' not in st.session_state:
@@ -311,28 +423,90 @@ def main():
         placeholder="Ex: Je veux travailler en data science, faire du machine learning, analyser des données...\n\nOu colle une offre d'emploi complète.\n\nℹ️ Laisse vide pour voir tous les cours (ordre alphabétique)."
     )
 
-    if st.button("Afficher les cours", type="primary", use_container_width=True):
-        with st.spinner("Chargement des cours optionnels..."):
+    if st.button("🔍 Rechercher les cours", type="primary", use_container_width=True):
+        with st.spinner("🔄 Analyse des cours optionnels en cours..."):
             results = search_courses(query, filters, emb, rerank, coll, bm25, data)
 
         if not results:
-            st.error("Aucun cours optionnel trouvé pour cette section/semestre. Vérifie tes filtres.")
+            st.error("❌ Aucun cours optionnel trouvé pour cette section/semestre. Vérifie tes filtres.")
             return
 
+        # Results header
+        st.markdown("---")
         if query and query.strip():
-            st.success(f"✅ {len(results)} cours optionnel{'s' if len(results) > 1 else ''} (triés par pertinence)")
+            st.success(f"✅ **{len(results)} cours optionnel{'s' if len(results) > 1 else ''} trouvé{'s' if len(results) > 1 else ''}** (triés par pertinence)")
         else:
-            st.info(f"📚 {len(results)} cours optionnel{'s' if len(results) > 1 else ''} disponible{'s' if len(results) > 1 else ''} (ordre alphabétique)")
+            st.info(f"📚 **{len(results)} cours optionnel{'s' if len(results) > 1 else ''} disponible{'s' if len(results) > 1 else ''}** (ordre alphabétique)")
 
+        st.markdown("")
+
+        # Display results as stylized course cards
         for i, r in enumerate(results, 1):
-            # Display course with ranking (score hidden, but order preserved)
-            st.markdown(f"### {i}. [{r['meta']['title']}]({r['meta']['url']})")
-            st.markdown(f"**🎓 {r['section']}** | **📅 {r['semester']}** | ⭐ Cours Optionnel")
+            # Parse course metadata
+            course_info = parse_course_metadata(r['content'])
 
-            with st.expander("📖 Voir le contenu du cours"):
-                st.write(r['content'][:500] + "...")
+            # Course card container
+            with st.container():
+                # Title with link and ranking badge
+                col_rank, col_title = st.columns([0.5, 11.5])
 
-            st.markdown("---")
+                with col_rank:
+                    st.markdown(f"### `{i}`")
+
+                with col_title:
+                    st.markdown(f"### [{r['meta']['title']}]({r['meta']['url']})")
+
+                # Metadata badges in columns
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    st.markdown(f"**📋 Code**")
+                    st.code(course_info['code'])
+
+                with col2:
+                    st.markdown(f"**🎓 Crédits**")
+                    st.code(course_info['credits'])
+
+                with col3:
+                    st.markdown(f"**🏫 Section**")
+                    st.code(r['section'][:20] + "..." if len(r['section']) > 20 else r['section'])
+
+                with col4:
+                    st.markdown(f"**📅 Semestre**")
+                    st.code(r['semester'])
+
+                # Professor and language in a second row
+                col5, col6 = st.columns(2)
+
+                with col5:
+                    st.markdown(f"**👨‍🏫 Enseignant**")
+                    st.caption(course_info['professor'])
+
+                with col6:
+                    st.markdown(f"**🌐 Langue**")
+                    st.caption(course_info['language'])
+
+                # Relevance score (only if query was provided)
+                if query and query.strip():
+                    raw_score = r.get('score', 0)
+                    score_pct = calculate_score_percentage(raw_score)
+
+                    # Debug print to terminal
+                    print(f"🖥️  DEBUG Display - {r['meta']['title'][:30]:30s} | Raw: {raw_score:7.4f} | Display: {score_pct*100:5.1f}%")
+
+                    st.markdown(f"**📊 Pertinence:** {score_pct*100:.1f}%")
+                    st.progress(score_pct)
+
+                # Description in expander
+                with st.expander("📖 Voir la description et les détails du cours"):
+                    # Display first 800 characters of content
+                    content_preview = r['content'][:800]
+                    if len(r['content']) > 800:
+                        content_preview += "..."
+                    st.markdown(content_preview)
+                    st.markdown(f"[🔗 Voir la page complète du cours]({r['meta']['url']})")
+
+                st.markdown("---")
 
 if __name__ == "__main__":
     main()
