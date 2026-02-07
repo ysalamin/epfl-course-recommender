@@ -9,6 +9,32 @@ import json
 DB_PATH = "./epfl_cours_db"
 COLLECTION_NAME = "cours_epfl"
 
+# Allowlist for sections (Bachelor + Master)
+ALLOWED_SECTIONS_BACHELOR = [
+    'Architecture', 'Chimie', 'Chimie et génie chimique', 'Génie chimique',
+    'Génie civil', 'Génie mécanique', 'Génie électrique et électronique',
+    'Informatique', 'Ingénierie des sciences du vivant', 'Mathématiques',
+    'Microtechnique', 'Physique', 'Science et génie des matériaux',
+    'Sciences et ingénierie de l\'environnement', 'Systèmes de communication'
+]
+
+ALLOWED_SECTIONS_MASTER = [
+    'Architecture', 'Chimie moléculaire et biologique', 'Data Science',
+    'Génie chimique et biotechnologie', 'Génie civil', 'Génie mécanique',
+    'Génie nucléaire', 'Génie électrique et électronique', 'Humanités digitales',
+    'Informatique', 'Informatique - Cybersecurity', 'Ingénierie des sciences du vivant',
+    'Ingénierie financière', 'Ingénierie mathématique', 'Ingénierie physique',
+    'Management durable et technologie', 'Management, technologie et entrepreneuriat',
+    'Mathématiques - master', 'Micro- and Nanotechnologies for Integrated Systems',
+    'Microtechnique', 'Neuro-X', 'Physique - master', 'Robotique',
+    'Science et génie des matériaux', 'Science et ingénierie computationnelles',
+    'Science et ingénierie quantiques', 'Science et technologie de l\'énergie',
+    'Sciences et ingénierie de l\'environnement', 'Statistique', 'Systèmes urbains'
+]
+
+# Union of both lists (sorted alphabetically)
+ALLOWED_SECTIONS = sorted(list(set(ALLOWED_SECTIONS_BACHELOR + ALLOWED_SECTIONS_MASTER)))
+
 JOB_EXAMPLES = {
     "📊 Data Scientist": """Position: Senior Data Scientist
 Location: Lausanne
@@ -111,15 +137,16 @@ def load_resources():
 
 
 @st.cache_data
-def get_unique_sections(all_data):
-    """Extract all unique sections from the metadata"""
+def get_filtered_sections(all_data):
+    """Extract unique sections from metadata, filtered by allowlist"""
     sections = set()
 
     for meta in all_data['metadatas']:
         plans = json.loads(meta.get('metadata', '[]'))
         for plan in plans:
             section = plan.get('section', '').strip()
-            if section and section.lower() not in ['unknown', '', 'autre']:
+            # Only include sections that are in the allowlist
+            if section in ALLOWED_SECTIONS:
                 sections.add(section)
 
     return sorted(list(sections))
@@ -224,31 +251,43 @@ def main():
     with st.sidebar:
         st.header("Filtres")
 
-        # Level selection
-        level = st.radio("Niveau d'études", ["Bachelor", "Master"], index=0)
-
-        # Section selection (dynamic from data)
-        available_sections = get_unique_sections(data)
-        section = st.selectbox(
-            "Section / Programme",
-            available_sections,
-            help="Choisissez votre section d'études"
+        # Semester selection (implicitly determines level)
+        semester_choice = st.selectbox(
+            "Semestre",
+            ["BA3", "BA4", "BA5", "BA6", "MA"],
+            help="BA = Bachelor, MA = Master"
         )
 
-        # Semester selection (only for Bachelor)
-        semester_filter = None
-        if level == "Bachelor":
-            ba_semester = st.selectbox(
-                "Semestre actuel",
-                ["BA1", "BA2", "BA3", "BA4", "BA5", "BA6"]
-            )
-            # Map to Fall/Spring
-            if ba_semester in ["BA1", "BA3", "BA5"]:
+        # Derive level and semester_filter from semester choice
+        if semester_choice == "MA":
+            level = "Master"
+            semester_filter = None  # No semester filtering for Master
+        else:
+            level = "Bachelor"
+            # Map BA semesters to Fall/Spring
+            if semester_choice in ["BA3", "BA5"]:
                 semester_filter = "Fall"
-            else:  # BA2, BA4, BA6
+            else:  # BA4, BA6
                 semester_filter = "Spring"
 
-            st.info(f"📅 Cours du semestre: {semester_filter}")
+        # Show derived information
+        if semester_filter:
+            st.info(f"📚 **{level}**\n📅 Semestre: {semester_filter}")
+        else:
+            st.info(f"📚 **{level}**")
+
+        # Section selection (filtered by allowlist)
+        available_sections = get_filtered_sections(data)
+
+        if not available_sections:
+            st.error("Aucune section disponible dans les données")
+            section = None
+        else:
+            section = st.selectbox(
+                "Section / Programme",
+                available_sections,
+                help="Sections filtrées selon le programme officiel EPFL"
+            )
 
         filters = (level, section, semester_filter)
 
