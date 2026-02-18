@@ -1,3 +1,12 @@
+# CRITICAL: Patch SQLite for ChromaDB on Streamlit Cloud (Linux)
+try:
+    __import__('pysqlite3')
+    import sys
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+except ImportError:
+    # Windows/local environment - use standard sqlite3
+    pass
+
 import streamlit as st
 from sentence_transformers import SentenceTransformer, CrossEncoder
 import chromadb
@@ -5,6 +14,7 @@ from rank_bm25 import BM25Okapi
 import math
 import json
 import re
+import os
 
 # Must be first Streamlit command
 st.set_page_config(
@@ -123,6 +133,85 @@ Skills:
 - Photovoltaics and semiconductor physics."""
 }
 
+def initialize_database(embedder):
+    """
+    Initialize ChromaDB from scratch using cours_data_final.json
+    This runs on first launch when the database doesn't exist
+    """
+    DATA_FILE = "./data/cours_data_final.json"
+    BATCH_SIZE = 50
+
+    # Load course data
+    if not os.path.exists(DATA_FILE):
+        st.error(f"❌ Fichier de données introuvable: {DATA_FILE}")
+        st.stop()
+
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
+        course_data = json.load(f)
+
+    st.info(f"📚 Chargement de {len(course_data)} cours depuis {DATA_FILE}")
+
+    # Setup ChromaDB
+    client = chromadb.PersistentClient(path=DB_PATH)
+
+    # Delete collection if exists (cleanup)
+    try:
+        client.delete_collection(name=COLLECTION_NAME)
+    except:
+        pass
+
+    collection = client.create_collection(name=COLLECTION_NAME)
+
+    # Process in batches
+    total_length = len(course_data)
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    for i in range(0, total_length, BATCH_SIZE):
+        batch = course_data[i:i + BATCH_SIZE]
+
+        ids = []
+        documents = []
+        metadatas = []
+
+        for cours in batch:
+            url = cours.get("url")
+            title = cours.get("title")
+            content = cours.get("content")
+            metadata = cours.get("metadata")
+
+            if not url or not content:
+                continue
+
+            ids.append(url)
+            documents.append(content)
+
+            # Metadata as JSON string (ChromaDB limitation)
+            meta_str = json.dumps(metadata)
+            metadatas.append({"title": title, "url": url, "metadata": meta_str})
+
+        if documents:
+            embeddings = embedder.encode(documents).tolist()
+            collection.add(
+                ids=ids,
+                documents=documents,
+                embeddings=embeddings,
+                metadatas=metadatas
+            )
+
+        # Update progress
+        processed = min(i + BATCH_SIZE, total_length)
+        progress = processed / total_length
+        progress_bar.progress(progress)
+        status_text.text(f"Indexation: {processed}/{total_length} cours traités...")
+
+    progress_bar.empty()
+    status_text.empty()
+    st.success("✅ Base de données créée avec succès!")
+
+    return collection
+
+
 @st.cache_resource
 def load_resources():
 
@@ -130,9 +219,16 @@ def load_resources():
     embedder = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2', device='cpu')
     reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
 
-    # DB
-    client = chromadb.PersistentClient(path=DB_PATH)
-    collection = client.get_collection(name=COLLECTION_NAME)
+    # Check if DB exists, if not initialize it
+    if not os.path.exists(DB_PATH):
+        st.warning("⚠️ Base de données introuvable. Premier lancement détecté.")
+        st.info("🔄 Indexation des cours en cours... (cela peut prendre 1-2 minutes)")
+        collection = initialize_database(embedder)
+    else:
+        # DB exists, load normally
+        client = chromadb.PersistentClient(path=DB_PATH)
+        collection = client.get_collection(name=COLLECTION_NAME)
+
     all_docs = collection.get()
 
     tokenized_corpus = [doc.split() for doc in all_docs['documents']]
