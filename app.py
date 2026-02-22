@@ -15,6 +15,7 @@ import math
 import json
 import re
 import os
+from job_examples import JOB_EXAMPLES
 
 # Must be first Streamlit command
 st.set_page_config(
@@ -51,87 +52,6 @@ MASTER_SECTIONS = [
     'Sciences et ingénierie de l\'environnement', 'Statistique', 'Systèmes urbains'
 ]
 
-JOB_EXAMPLES = {
-    "📊 Data Scientist": """Position: Senior Data Scientist
-Location: Lausanne
-We are looking for an expert in Machine Learning and Big Data.
-Responsibilities:
-- Build predictive models using Scikit-Learn, PyTorch, and TensorFlow.
-- Process large datasets with Spark and Hadoop.
-- Implement Natural Language Processing (NLP) pipelines.
-- Strong background in Statistics, Probability, and Linear Algebra.""",
-
-    "☁️ DevOps / Cloud": """Position: DevOps Engineer
-Location: Zurich
-Join our infrastructure team to scale our SaaS platform.
-Skills Required:
-- CI/CD pipelines (Jenkins, GitLab CI, GitHub Actions).
-- Container orchestration with Docker and Kubernetes (K8s).
-- Infrastructure as Code (Terraform, Ansible).
-- Cloud platforms: AWS (EC2, Lambda, S3) or Azure.
-- Monitoring with Prometheus and Grafana.
-- Scripting in Bash and Go.""",
-
-    "🧬 Biomedical Eng.": """Position: R&D Biomedical Engineer
-Location: Geneva
-Design the next generation of medical devices.
-Key Skills:
-- Biosignal processing (EEG, ECG, EMG) using Matlab/Python.
-- Biomechanics and prosthetics design.
-- Regulatory standards (ISO 13485, FDA).
-- Medical imaging analysis (MRI, CT-Scan).
-- Microfluidics and Lab-on-a-chip technologies.""",
-
-    "⚡ Electrical Eng.": """Position: Hardware / Electrical Engineer
-Location: Neuchatel
-Develop high-performance electronic systems.
-Requirements:
-- PCB Design and layout (Altium Designer, KiCad).
-- FPGA programming (VHDL / Verilog).
-- Embedded systems (C/C++, STM32, Microcontrollers).
-- Signal processing and analog circuit design.
-- Power electronics and battery management systems (BMS).""",
-
-    "⚙️ Mechanical Eng.": """Position: Mechanical Design Engineer
-Location: Bern
-Focus on precision engineering and robotics.
-Responsibilities:
-- 3D CAD modeling (SolidWorks, CATIA, Siemens NX).
-- Finite Element Analysis (FEA) and structural simulation (ANSYS).
-- Thermodynamics and Heat Transfer analysis.
-- Fluid mechanics and aerodynamics (CFD).
-- Rapid prototyping and additive manufacturing.""",
-
-    "🏗️ Civil Eng.": """Position: Structural Civil Engineer
-Location: Fribourg
-Design sustainable infrastructure and buildings.
-Skills:
-- Structural analysis of reinforced concrete and steel.
-- Geotechnical engineering and soil mechanics.
-- BIM (Building Information Modeling) with Revit or Civil 3D.
-- Hydraulics and hydrology for urban water management.
-- Environmental impact assessment.""",
-
-    "🏛️ Architecture": """Position: Architect / Urban Planner
-Location: Basel
-Create innovative sustainable living spaces.
-Skills:
-- Architectural design and theory.
-- Parametric design (Rhino, Grasshopper).
-- Sustainable urban planning and landscape architecture.
-- Heritage conservation and restoration.
-- Graphic representation and rendering.""",
-
-    "🧪 Materials Science": """Position: Materials R&D Engineer
-Location: Sion
-Develop novel materials for energy applications.
-Skills:
-- Characterization techniques (SEM, XRD, Spectroscopy).
-- Polymer science and composite materials.
-- Metallurgy and ceramics.
-- Nanotechnology and surface functionalization.
-- Photovoltaics and semiconductor physics."""
-}
 
 def initialize_database(embedder):
     """
@@ -490,27 +410,18 @@ def main():
     if 'query' not in st.session_state:
         st.session_state.query = ""
 
-    # Example buttons (2 rows of 4)
-    st.markdown("**Exemples de test :**")
-    examples_list = list(JOB_EXAMPLES.items())
-
-    # First row (4 buttons)
-    cols1 = st.columns(4)
-    for i in range(4):
-        if i < len(examples_list):
-            label, example_text = examples_list[i]
-            with cols1[i]:
-                if st.button(label, use_container_width=True, key=f"btn_{i}"):
-                    st.session_state.query = example_text
-
-    # Second row (4 buttons)
-    cols2 = st.columns(4)
-    for i in range(4, 8):
-        if i < len(examples_list):
-            label, example_text = examples_list[i]
-            with cols2[i-4]:
-                if st.button(label, use_container_width=True, key=f"btn_{i}"):
-                    st.session_state.query = example_text
+    # Job example picker
+    with st.expander("💼 Exemples d'offres d'emploi", expanded=False):
+        example_keys = list(JOB_EXAMPLES.keys())
+        selected_example = st.selectbox(
+            "Sélectionne un profil de poste :",
+            example_keys,
+            index=0,
+            label_visibility="collapsed",
+        )
+        if st.button("🪄 Appliquer cet exemple", use_container_width=True):
+            st.session_state.query = JOB_EXAMPLES[selected_example]
+            st.rerun()
 
     query = st.text_area(
         "📝 Décris le type de job ou de compétences que tu vises (optionnel)",
