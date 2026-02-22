@@ -248,14 +248,14 @@ def calculate_score_percentage(score):
 def search_courses(query, filters, embedder, reranker, collection, bm25, all_data):
     """
     New logic: Show ALL courses matching filters, sorted by relevance
-    - First: Apply strict filters (level, section, semester, type='Optionnel')
+    - First: Apply strict filters (level, section, semester, course_type_filter)
     - Then: Calculate relevance score for ALL filtered courses
     - Finally: Sort by relevance (query only affects ORDER, not visibility)
     """
-    target_level, target_section, semester_filter = filters
+    target_level, target_section, semester_filter, course_type_filter = filters
 
     print(f"\n{'='*80}")
-    print(f"FILTRES: level={target_level}, section={target_section}, semester={semester_filter}")
+    print(f"FILTRES: level={target_level}, section={target_section}, semester={semester_filter}, type={course_type_filter}")
     print(f"Mode: Affichage de TOUS les cours correspondants aux filtres")
     print(f"{'='*80}\n")
 
@@ -276,7 +276,10 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
             # Strict filtering
             level_match = (lvl == target_level)
             section_match = (sec == target_section)
-            type_match = (course_type == "Optionnel")
+            if course_type_filter == "Tous":
+                type_match = True
+            else:
+                type_match = (course_type == course_type_filter)
 
             # Semester match (only for Bachelor)
             if target_level == "Bachelor":
@@ -307,7 +310,7 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
             unique_titles.add(title)
     filtered_candidates = unique_candidates
 
-    print(f"\nCours optionnels trouvés (TOTAL): {len(filtered_candidates)}\n")
+    print(f"\nCours trouvés (TOTAL): {len(filtered_candidates)}\n")
 
     if not filtered_candidates:
         return []
@@ -341,7 +344,7 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
 
 def main():
     st.title("🎓 EPFL Course Recommender")
-    st.markdown("### Trouve les cours optionnels qui matchent avec tes objectifs professionnels")
+    st.markdown("### Trouve les cours qui matchent avec tes objectifs professionnels")
     st.markdown("---")
 
     # Load resources first
@@ -387,6 +390,13 @@ def main():
             help=f"Sections disponibles pour {level}"
         )
 
+        course_type_filter = st.radio(
+            "📌 Type de cours",
+            ["Optionnel", "Obligatoire", "Tous"],
+            index=0,
+            horizontal=True,
+        )
+
         st.markdown("---")
 
         # Reset button
@@ -394,7 +404,7 @@ def main():
             st.session_state.query = ""
             st.rerun()
 
-        filters = (level, section, semester_filter)
+        filters = (level, section, semester_filter, course_type_filter)
 
         # Info section
         st.markdown("---")
@@ -431,19 +441,21 @@ def main():
     )
 
     if st.button("🔍 Rechercher les cours", type="primary", use_container_width=True):
-        with st.spinner("🔄 Analyse des cours optionnels en cours..."):
+        with st.spinner("🔄 Analyse des cours en cours..."):
             results = search_courses(query, filters, emb, rerank, coll, bm25, data)
 
         if not results:
-            st.error("❌ Aucun cours optionnel trouvé pour cette section/semestre. Vérifie tes filtres.")
+            st.error("❌ Aucun cours trouvé pour cette section/semestre. Vérifie tes filtres.")
             return
 
         # Results header
         st.markdown("---")
+        n = len(results)
+        plural = "s" if n > 1 else ""
         if query and query.strip():
-            st.success(f"✅ **{len(results)} cours optionnel{'s' if len(results) > 1 else ''} trouvé{'s' if len(results) > 1 else ''}** (triés par pertinence)")
+            st.success(f"✅ **{n} cour{plural} trouvé{plural}** (triés par pertinence)")
         else:
-            st.info(f"📚 **{len(results)} cours optionnel{'s' if len(results) > 1 else ''} disponible{'s' if len(results) > 1 else ''}** (ordre alphabétique)")
+            st.info(f"📚 **{n} cour{plural} disponible{plural}** (ordre alphabétique)")
 
         st.markdown("")
 
