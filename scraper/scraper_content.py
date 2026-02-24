@@ -19,46 +19,35 @@ def get_course_details(url):
         title_tag = soup.find("h1")
         title = title_tag.get_text(strip=True) if title_tag else "No title"
 
-        # Extract semester (Fall/Spring) - same for all study plans
-        semester = "Unknown"
-        plans_container = soup.find("div", class_="study-plans")
-        if plans_container:
-            # Find the first collapse-item to extract semester
-            first_collapse = plans_container.find("div", class_="collapse-item")
-            if first_collapse:
-                # Look for <strong>Semestre:</strong> or <strong>Semester:</strong>
-                for strong_tag in first_collapse.find_all("strong"):
-                    strong_text = strong_tag.get_text(strip=True).lower()
-                    if "semestre" in strong_text or "semester" in strong_text:
-                        # Get the text after the strong tag
-                        next_text = strong_tag.next_sibling
-                        if next_text:
-                            semester_raw = next_text.strip() if isinstance(next_text, str) else next_text.get_text(strip=True)
-                            # Normalize to Fall or Spring
-                            semester_lower = semester_raw.lower()
-                            if "automne" in semester_lower or "fall" in semester_lower:
-                                semester = "Fall"
-                            elif "printemps" in semester_lower or "spring" in semester_lower:
-                                semester = "Spring"
-                        break
-
         # Examples : Bachelor Syscom, Bachelor info, Master Data science...
         course_metadata = []
 
+        plans_container = soup.find("div", class_="study-plans")
         if plans_container:
             accordeons = plans_container.find_all("button", class_="collapse-title")
             for accordeon in accordeons:
                 span_tag = accordeon.find("span")
                 if not span_tag: continue
 
-                # Extraction Section (Syscom) and level(Master)
+                # Extraction Section (Syscom) and level (Master)
                 full_accordeon_text = accordeon.get_text(strip=True)
                 span_text = span_tag.getText(strip=True)
                 section_name = full_accordeon_text.replace(span_text, "").strip()
 
+                # Extract level and specific semester number from span_text
+                # e.g. '2025-2026 Bachelor semestre 3' -> level="Bachelor", semester="BA3"
+                # e.g. '2025-2026 Master semester 1'   -> level="Master",   semester="MA1"
                 level = "Autre"
-                if "Master" in span_text: level = "Master"
-                elif "Bachelor" in span_text: level = "Bachelor"
+                semester = "Unknown"
+                num_match = re.search(r'(?:semestre|semester)\s+(\d+)', span_text, re.IGNORECASE)
+                if "Bachelor" in span_text:
+                    level = "Bachelor"
+                    if num_match:
+                        semester = f"BA{num_match.group(1)}"
+                elif "Master" in span_text:
+                    level = "Master"
+                    if num_match:
+                        semester = f"MA{num_match.group(1)}"
 
                 # Mandatory / Optional extraction - store as string
                 course_type = "Unknown"

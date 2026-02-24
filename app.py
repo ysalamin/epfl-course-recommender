@@ -281,11 +281,8 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
             else:
                 type_match = (course_type == course_type_filter)
 
-            # Semester match (only for Bachelor)
-            if target_level == "Bachelor":
-                semester_match = (sem == semester_filter)
-            else:
-                semester_match = True  # No semester filter for Master
+            # Semester match — strict for both Bachelor and Master
+            semester_match = (sem == semester_filter)
 
             if level_match and section_match and type_match and semester_match:
                 print(f"✓ MATCH: {meta.get('title', 'N/A')[:50]} | {lvl} | {sec} | {course_type} | {sem}")
@@ -359,27 +356,16 @@ def main():
         # Semester selection (implicitly determines level)
         semester_choice = st.selectbox(
             "📅 Semestre",
-            ["BA3", "BA4", "BA5", "BA6", "MA"],
+            ["BA3", "BA4", "BA5", "BA6", "MA1", "MA2", "MA3", "MA4"],
             help="BA = Bachelor, MA = Master"
         )
 
         # Derive level and semester_filter from semester choice
-        if semester_choice == "MA":
-            level = "Master"
-            semester_filter = None  # No semester filtering for Master
-        else:
-            level = "Bachelor"
-            # Map BA semesters to Fall/Spring
-            if semester_choice in ["BA3", "BA5"]:
-                semester_filter = "Fall"
-            else:  # BA4, BA6
-                semester_filter = "Spring"
+        level = "Bachelor" if semester_choice.startswith("BA") else "Master"
+        semester_filter = semester_choice
 
         # Show derived information
-        if semester_filter:
-            st.success(f"**Niveau:** {level}\n\n**Période:** {semester_filter}")
-        else:
-            st.success(f"**Niveau:** {level}")
+        st.success(f"**Niveau:** {level}\n\n**Semestre:** {semester_filter}")
 
         # Section selection (dynamic based on level)
         available_sections = get_sections_for_level(level)
