@@ -52,6 +52,13 @@ MASTER_SECTIONS = [
     'Sciences et ingénierie de l\'environnement', 'Statistique', 'Systèmes urbains'
 ]
 
+# Combined list of (display_name, section_name, level), sorted alphabetically
+ALL_SECTIONS = sorted(
+    [(f"{s} (Bachelor)", s, "Bachelor") for s in BACHELOR_SECTIONS] +
+    [(f"{s} (Master)", s, "Master") for s in MASTER_SECTIONS],
+    key=lambda x: x[0]
+)
+
 
 def initialize_database(embedder):
     """
@@ -156,15 +163,6 @@ def load_resources():
 
     return embedder, reranker, collection, bm25, all_docs
 
-
-def get_sections_for_level(level):
-    """Return the appropriate section list based on level"""
-    if level == "Bachelor":
-        return BACHELOR_SECTIONS
-    elif level == "Master":
-        return MASTER_SECTIONS
-    else:
-        return []
 
 
 def parse_course_metadata(content):
@@ -353,27 +351,26 @@ def main():
         st.markdown("Personnalise ta recherche de cours")
         st.markdown("---")
 
-        # Semester selection (implicitly determines level)
-        semester_choice = st.selectbox(
-            "📅 Semestre",
-            ["BA3", "BA4", "BA5", "BA6", "MA1", "MA2", "MA3", "MA4"],
-            help="BA = Bachelor, MA = Master"
+        # Section selection (combined list with level in parentheses)
+        section_display_names = [entry[0] for entry in ALL_SECTIONS]
+        selected_display = st.selectbox(
+            "🎯 Section / Programme",
+            section_display_names,
+            help="Sélectionne ta section — le niveau (Bachelor/Master) est indiqué entre parenthèses"
         )
 
-        # Derive level and semester_filter from semester choice
-        level = "Bachelor" if semester_choice.startswith("BA") else "Master"
-        semester_filter = semester_choice
+        # Derive level and section name from selection
+        _, section, level = next(e for e in ALL_SECTIONS if e[0] == selected_display)
 
-        # Show derived information
-        st.success(f"**Niveau:** {level}\n\n**Semestre:** {semester_filter}")
+        # Dynamic semester options based on level
+        if level == "Bachelor":
+            semester_options = ["BA1", "BA2", "BA3", "BA4", "BA5", "BA6"]
+        else:
+            semester_options = ["MA1", "MA2", "MA3", "MA4"]
 
-        # Section selection (dynamic based on level)
-        available_sections = get_sections_for_level(level)
-
-        section = st.selectbox(
-            "🎯 Section / Programme",
-            available_sections,
-            help=f"Sections disponibles pour {level}"
+        semester_filter = st.selectbox(
+            "📅 Semestre",
+            semester_options,
         )
 
         course_type_filter = st.radio(
@@ -396,8 +393,8 @@ def main():
         st.markdown("---")
         st.markdown("### 💡 Comment ça marche ?")
         st.markdown("""
-        1. **Choisis** ton semestre
-        2. **Sélectionne** ta section
+        1. **Sélectionne** ta section (Bachelor/Master inclus)
+        2. **Choisis** ton semestre
         3. **Décris** ton job de rêve
         4. **Découvre** les cours pertinents
         """)
