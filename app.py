@@ -15,6 +15,7 @@ import math
 import json
 import re
 import os
+import numpy as np
 from job_examples import JOB_EXAMPLES
 
 # Must be first Streamlit command
@@ -28,6 +29,7 @@ st.set_page_config(
 # CONST
 DB_PATH = "./epfl_cours_db"
 COLLECTION_NAME = "cours_epfl"
+TOP_K_RETRIEVAL = 20  # How many candidates each retrieval pass (BM25 + semantic) returns
 
 # Allowlist for sections (separate Bachelor and Master lists)
 BACHELOR_SECTIONS = [
@@ -245,10 +247,14 @@ def calculate_score_percentage(score):
 
 def search_courses(query, filters, embedder, reranker, collection, bm25, all_data):
     """
-    New logic: Show ALL courses matching filters, sorted by relevance
-    - First: Apply strict filters (level, section, semester, course_type_filter)
-    - Then: Calculate relevance score for ALL filtered courses
-    - Finally: Sort by relevance (query only affects ORDER, not visibility)
+    Hybrid retrieval pipeline:
+    1. Metadata filtering  — narrow down to courses matching level/section/semester/type
+    2. If query provided:
+       a. BM25 retrieval   — keyword scoring on filtered subset, take top-K
+       b. Semantic retrieval — cosine similarity on embeddings, take top-K
+       c. Merge            — union of both top-K sets
+       d. Rerank           — CrossEncoder on merged set, sort by score
+    3. If no query: return all filtered courses alphabetically
     """
     target_level, target_section, semester_filter, course_type_filter = filters
 
@@ -305,35 +311,99 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
             unique_titles.add(title)
     filtered_candidates = unique_candidates
 
-    print(f"\nCours trouvés (TOTAL): {len(filtered_candidates)}\n")
+    print(f"\nCours trouvés après filtrage (TOTAL): {len(filtered_candidates)}\n")
 
     if not filtered_candidates:
         return []
 
-    # Step 2: Calculate relevance score for ALL filtered courses
-    if query and query.strip():
-        print("Calcul des scores de pertinence pour TOUS les cours...\n")
-        pairs = [[query, candidate["content"]] for candidate in filtered_candidates]
-        scores = reranker.predict(pairs)
-
-        print(f"🔍 DEBUG - Reranker Scores Statistics:")
-        print(f"   Min score: {min(scores):.4f}")
-        print(f"   Max score: {max(scores):.4f}")
-        print(f"   Mean score: {sum(scores)/len(scores):.4f}\n")
-
-        for candidate, score in zip(filtered_candidates, scores):
-            candidate['score'] = score
-            print(f"   📊 {candidate['meta']['title'][:40]:40s} | Raw: {score:7.4f}")
-
-        # Sort by relevance score (highest first)
-        filtered_candidates.sort(key=lambda x: x['score'], reverse=True)
-    else:
-        # No query: sort alphabetically by title
+    # Step 2: No query — return everything alphabetically
+    if not query or not query.strip():
         filtered_candidates.sort(key=lambda x: x['meta']['title'])
         for candidate in filtered_candidates:
-            candidate['score'] = 0  # Neutral score
+            candidate['score'] = 0
+        return filtered_candidates
 
-    return filtered_candidates  # Return ALL matching courses
+    # Step 3: Hybrid retrieval — BM25 + Semantic on filtered subset only
+
+    # Build a lookup: course id → position in all_data (needed for global BM25 scores)
+    id_to_global_idx = {cid: idx for idx, cid in enumerate(all_data['ids'])}
+
+    # --- BM25 retrieval ---
+    query_tokens = query.split()
+    all_bm25_scores = bm25.get_scores(query_tokens)  # scores for every doc in corpus
+
+    bm25_scored = []
+    for candidate in filtered_candidates:
+        global_idx = id_to_global_idx.get(candidate['id'])
+        score = float(all_bm25_scores[global_idx]) if global_idx is not None else 0.0
+        bm25_scored.append((candidate, score))
+
+    bm25_scored.sort(key=lambda x: x[1], reverse=True)
+    bm25_top = bm25_scored[:TOP_K_RETRIEVAL]
+    bm25_top_ids = {c['id'] for c, _ in bm25_top}
+
+    print(f"📘 BM25 Top-{TOP_K_RETRIEVAL} (sur {len(filtered_candidates)} candidats filtrés):")
+    for candidate, score in bm25_top:
+        print(f"   BM25 {candidate['meta']['title'][:40]:40s} | Score: {score:.4f}")
+
+    # --- Semantic retrieval ---
+    query_embedding = embedder.encode(query)
+    query_norm = query_embedding / (np.linalg.norm(query_embedding) + 1e-10)
+
+    # Fetch stored embeddings from ChromaDB for filtered candidates only
+    filtered_ids = [c['id'] for c in filtered_candidates]
+    chroma_result = collection.get(ids=filtered_ids, include=["embeddings"])
+    id_to_embedding = {cid: emb for cid, emb in zip(chroma_result['ids'], chroma_result['embeddings'])}
+
+    semantic_scored = []
+    for candidate in filtered_candidates:
+        emb = id_to_embedding.get(candidate['id'])
+        if emb is not None:
+            emb_arr = np.array(emb, dtype=np.float32)
+            emb_norm = emb_arr / (np.linalg.norm(emb_arr) + 1e-10)
+            sim = float(np.dot(query_norm, emb_norm))
+        else:
+            sim = 0.0
+        semantic_scored.append((candidate, sim))
+
+    semantic_scored.sort(key=lambda x: x[1], reverse=True)
+    semantic_top = semantic_scored[:TOP_K_RETRIEVAL]
+    semantic_top_ids = {c['id'] for c, _ in semantic_top}
+
+    print(f"\n🔵 Semantic Top-{TOP_K_RETRIEVAL} (sur {len(filtered_candidates)} candidats filtrés):")
+    for candidate, score in semantic_top:
+        print(f"   SEM  {candidate['meta']['title'][:40]:40s} | Cosine: {score:.4f}")
+
+    # --- Merge: union of both top-K sets ---
+    merged_ids = bm25_top_ids | semantic_top_ids
+    only_bm25 = bm25_top_ids - semantic_top_ids
+    only_sem = semantic_top_ids - bm25_top_ids
+    overlap = bm25_top_ids & semantic_top_ids
+    merged_candidates = [c for c in filtered_candidates if c['id'] in merged_ids]
+
+    print(f"\n🔀 Merge: {len(bm25_top_ids)} BM25 + {len(semantic_top_ids)} Semantic")
+    print(f"   Overlap: {len(overlap)} | Only BM25: {len(only_bm25)} | Only Semantic: {len(only_sem)}")
+    print(f"   → {len(merged_candidates)} candidats envoyés au CrossEncoder\n")
+
+    # --- Rerank merged set with CrossEncoder ---
+    pairs = [[query, c["content"]] for c in merged_candidates]
+    scores = reranker.predict(pairs)
+
+    print(f"🔍 DEBUG - Reranker Scores Statistics:")
+    print(f"   Min score: {min(scores):.4f}")
+    print(f"   Max score: {max(scores):.4f}")
+    print(f"   Mean score: {sum(scores)/len(scores):.4f}\n")
+
+    for candidate, score in zip(merged_candidates, scores):
+        candidate['score'] = float(score)
+
+    merged_candidates.sort(key=lambda x: x['score'], reverse=True)
+
+    print(f"🏆 Ordre final après reranking:")
+    for i, candidate in enumerate(merged_candidates, 1):
+        print(f"   #{i:2d} {candidate['meta']['title'][:40]:40s} | Raw: {candidate['score']:7.4f}")
+
+    return merged_candidates
 
 
 
