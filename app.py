@@ -434,7 +434,7 @@ def main():
 
         # Dynamic semester options based on level
         if level == "Bachelor":
-            semester_options = ["BA1", "BA2", "BA3", "BA4", "BA5", "BA6"]
+            semester_options = ["BA3", "BA4", "BA5", "BA6"]
         else:
             semester_options = ["MA1", "MA2", "MA3", "MA4"]
 
