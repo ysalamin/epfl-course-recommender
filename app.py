@@ -11,7 +11,6 @@ import streamlit as st
 from sentence_transformers import SentenceTransformer, CrossEncoder
 import chromadb
 from rank_bm25 import BM25Okapi
-import math
 import json
 import re
 import os
@@ -210,39 +209,13 @@ def parse_course_metadata(content):
     return metadata
 
 
-def calculate_score_percentage(score):
+def calculate_score_percentage(r):
     """
-    Convert reranker score to user-friendly percentage using sigmoid
-
-    ADJUSTED FOR REAL-WORLD RERANKER SCORES:
-    In practice, reranker scores are often very negative (-12 to -6 range)
-    even for decent matches, especially with multilingual content.
-
-    New mapping (pivot at -10):
-    - Very poor (< -12): 15-35%
-    - Poor (-12 to -10): 35-55%
-    - Average (-10 to -8): 55-75%
-    - Good (-8 to -6): 75-90%
-    - Excellent (> -6): 90-99%
-
-    Formula: sigmoid(0.5 * (score + 10))
-    Pivot at score=-10 (scores above -10 get >50%, below get <50%)
+    Return the pre-computed display_score from the result dict.
+    Normalization (min-max across the result batch) is done in search_courses.
+    Falls back to 0.5 if no display_score is present.
     """
-    # Handle edge cases
-    if score is None:
-        return 0.5  # Default to 50%
-
-    # Very gentle sigmoid optimized for negative score ranges
-    # k=0.5 for gentle slope, pivot at -10 for realistic reranker scores
-    try:
-        result = 1 / (1 + math.exp(-0.5 * (score + 10)))
-        return max(0.15, min(0.99, result))  # Clamp between 15% and 99%
-    except (OverflowError, ValueError):
-        # Handle extreme values
-        if score > 0:
-            return 0.99
-        else:
-            return 0.15
+    return r.get('display_score', 0.5)
 
 
 def search_courses(query, filters, embedder, reranker, collection, bm25, all_data):
@@ -399,9 +372,18 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
 
     merged_candidates.sort(key=lambda x: x['score'], reverse=True)
 
+    # Min-max normalization to [0.0, 1.0] display range
+    raw_scores = [c['score'] for c in merged_candidates]
+    min_s, max_s = min(raw_scores), max(raw_scores)
+    for candidate in merged_candidates:
+        if max_s > min_s:
+            candidate['display_score'] = (candidate['score'] - min_s) / (max_s - min_s)
+        else:
+            candidate['display_score'] = 0.5  # all scores identical
+
     print(f"🏆 Ordre final après reranking:")
     for i, candidate in enumerate(merged_candidates, 1):
-        print(f"   #{i:2d} {candidate['meta']['title'][:40]:40s} | Raw: {candidate['score']:7.4f}")
+        print(f"   #{i:2d} {candidate['meta']['title'][:40]:40s} | Raw: {candidate['score']:7.4f} | Display: {candidate['display_score']*100:5.1f}%")
 
     return merged_candidates
 
@@ -560,11 +542,10 @@ def main():
 
                 # Relevance score (only if query was provided)
                 if query and query.strip():
-                    raw_score = r.get('score', 0)
-                    score_pct = calculate_score_percentage(raw_score)
+                    score_pct = calculate_score_percentage(r)
 
                     # Debug print to terminal
-                    print(f"🖥️  DEBUG Display - {r['meta']['title'][:30]:30s} | Raw: {raw_score:7.4f} | Display: {score_pct*100:5.1f}%")
+                    print(f"🖥️  DEBUG Display - {r['meta']['title'][:30]:30s} | Raw: {r.get('score', 0):7.4f} | Display: {score_pct*100:5.1f}%")
 
                     st.markdown(f"**📊 Pertinence:** {score_pct*100:.1f}%")
                     st.progress(score_pct)
