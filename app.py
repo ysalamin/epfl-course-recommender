@@ -455,18 +455,20 @@ def main():
     if 'query' not in st.session_state:
         st.session_state.query = ""
 
-    # Job example picker
-    with st.expander("💼 Exemples d'offres d'emploi", expanded=False):
-        example_keys = list(JOB_EXAMPLES.keys())
-        selected_example = st.selectbox(
-            "Sélectionne un profil de poste :",
-            example_keys,
-            index=0,
-            label_visibility="collapsed",
-        )
-        if st.button("🪄 Appliquer cet exemple", use_container_width=True):
-            st.session_state.query = JOB_EXAMPLES[selected_example]
-            st.rerun()
+    # Job example picker — auto-paste on selection
+    def apply_job_example():
+        key = st.session_state.job_example_selector
+        if key:
+            st.session_state.query = JOB_EXAMPLES[key]
+
+    st.selectbox(
+        "💼 Exemple d'offre d'emploi",
+        options=[""] + list(JOB_EXAMPLES.keys()),
+        index=0,
+        key="job_example_selector",
+        on_change=apply_job_example,
+        format_func=lambda x: "-- Sélectionne un exemple --" if x == "" else x,
+    )
 
     query = st.text_area(
         "📝 Décris le type de job ou de compétences que tu vises (optionnel)",
