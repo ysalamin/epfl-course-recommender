@@ -372,14 +372,10 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
 
     merged_candidates.sort(key=lambda x: x['score'], reverse=True)
 
-    # Min-max normalization to [0.0, 1.0] display range
-    raw_scores = [c['score'] for c in merged_candidates]
-    min_s, max_s = min(raw_scores), max(raw_scores)
+    # Sigmoid normalization — score-independent, so results don't anchor each other
+    import math
     for candidate in merged_candidates:
-        if max_s > min_s:
-            candidate['display_score'] = (candidate['score'] - min_s) / (max_s - min_s)
-        else:
-            candidate['display_score'] = 0.5  # all scores identical
+        candidate['display_score'] = 1 / (1 + math.exp(-(candidate['score'] + 10)))
 
     print(f"🏆 Ordre final après reranking:")
     for i, candidate in enumerate(merged_candidates, 1):
