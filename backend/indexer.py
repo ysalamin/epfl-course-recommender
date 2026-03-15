@@ -35,7 +35,7 @@ def main():
     if not course_data: return
 
     print("model and db setup / loading...")
-    model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+    model = SentenceTransformer('all-MiniLM-L6-v2')
     db = setup_chromaDB(DB_PATH, COLLECTION_NAME)
 
 

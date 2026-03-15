@@ -8,7 +8,7 @@ except ImportError:
     pass
 
 import streamlit as st
-from sentence_transformers import SentenceTransformer, CrossEncoder
+from sentence_transformers import SentenceTransformer
 import chromadb
 from rank_bm25 import BM25Okapi
 import json
@@ -144,8 +144,7 @@ def initialize_database(embedder):
 def load_resources():
 
     # Models
-    embedder = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2', device='cpu')
-    reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+    embedder = SentenceTransformer('all-MiniLM-L6-v2', device='cpu')
 
     # Check if DB exists, if not initialize it
     if not os.path.exists(DB_PATH):
@@ -162,7 +161,7 @@ def load_resources():
     tokenized_corpus = [doc.split() for doc in all_docs['documents']]
     bm25 = BM25Okapi(tokenized_corpus)
 
-    return embedder, reranker, collection, bm25, all_docs
+    return embedder, collection, bm25, all_docs
 
 
 
@@ -218,7 +217,7 @@ def calculate_score_percentage(r):
     return r.get('display_score', 0.5)
 
 
-def search_courses(query, filters, embedder, reranker, collection, bm25, all_data):
+def search_courses(query, filters, embedder, collection, bm25, all_data):
     """
     Hybrid retrieval pipeline:
     1. Metadata filtering  — narrow down to courses matching level/section/semester/type
@@ -226,7 +225,7 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
        a. BM25 retrieval   — keyword scoring on filtered subset, take top-K
        b. Semantic retrieval — cosine similarity on embeddings, take top-K
        c. Merge            — union of both top-K sets
-       d. Rerank           — CrossEncoder on merged set, sort by score
+       d. Score            — combined 0.7*cosine_norm + 0.3*bm25_norm, sort by score
     3. If no query: return all filtered courses alphabetically
     """
     target_level, target_section, semester_filter, course_type_filter = filters
@@ -356,30 +355,46 @@ def search_courses(query, filters, embedder, reranker, collection, bm25, all_dat
 
     print(f"\n🔀 Merge: {len(bm25_top_ids)} BM25 + {len(semantic_top_ids)} Semantic")
     print(f"   Overlap: {len(overlap)} | Only BM25: {len(only_bm25)} | Only Semantic: {len(only_sem)}")
-    print(f"   → {len(merged_candidates)} candidats envoyés au CrossEncoder\n")
+    print(f"   → {len(merged_candidates)} candidats pour le scoring combiné\n")
 
-    # --- Rerank merged set with CrossEncoder ---
-    pairs = [[query, c["content"]] for c in merged_candidates]
-    scores = reranker.predict(pairs)
+    # --- Combined scoring: 0.7 * cosine_norm + 0.3 * bm25_norm ---
+    id_to_cosine = {c['id']: s for c, s in semantic_scored}
+    id_to_bm25 = {c['id']: s for c, s in bm25_scored}
 
-    print(f"🔍 DEBUG - Reranker Scores Statistics:")
-    print(f"   Min score: {min(scores):.4f}")
-    print(f"   Max score: {max(scores):.4f}")
-    print(f"   Mean score: {sum(scores)/len(scores):.4f}\n")
+    raw_cosines = [id_to_cosine.get(c['id'], 0.0) for c in merged_candidates]
+    raw_bm25s   = [id_to_bm25.get(c['id'],   0.0) for c in merged_candidates]
 
-    for candidate, score in zip(merged_candidates, scores):
-        candidate['score'] = float(score)
+    def minmax_norm(vals):
+        lo, hi = min(vals), max(vals)
+        return [((v - lo) / (hi - lo)) if hi > lo else 0.5 for v in vals]
+
+    cosine_norm = minmax_norm(raw_cosines)
+    bm25_norm   = minmax_norm(raw_bm25s)
+
+    for candidate, cn, bn in zip(merged_candidates, cosine_norm, bm25_norm):
+        candidate['score'] = 0.7 * cn + 0.3 * bn
+
+    print(f"🔍 DEBUG - Combined Score Statistics:")
+    final_scores = [c['score'] for c in merged_candidates]
+    print(f"   Min score: {min(final_scores):.4f}")
+    print(f"   Max score: {max(final_scores):.4f}")
+    print(f"   Mean score: {sum(final_scores)/len(final_scores):.4f}\n")
 
     merged_candidates.sort(key=lambda x: x['score'], reverse=True)
 
-    # Sigmoid normalization — score-independent, so results don't anchor each other
-    import math
+    # Map final scores to [15%, 97%] display range via min-max
+    sorted_scores = [c['score'] for c in merged_candidates]
+    lo, hi = min(sorted_scores), max(sorted_scores)
     for candidate in merged_candidates:
-        candidate['display_score'] = 1 / (1 + math.exp(-(candidate['score'] + 10)))
+        if hi > lo:
+            t = (candidate['score'] - lo) / (hi - lo)
+        else:
+            t = 0.5
+        candidate['display_score'] = 0.15 + t * (0.97 - 0.15)
 
-    print(f"🏆 Ordre final après reranking:")
+    print(f"🏆 Ordre final après scoring combiné:")
     for i, candidate in enumerate(merged_candidates, 1):
-        print(f"   #{i:2d} {candidate['meta']['title'][:40]:40s} | Raw: {candidate['score']:7.4f} | Display: {candidate['display_score']*100:5.1f}%")
+        print(f"   #{i:2d} {candidate['meta']['title'][:40]:40s} | Score: {candidate['score']:.4f} | Display: {candidate['display_score']*100:5.1f}%")
 
     return merged_candidates
 
@@ -391,7 +406,7 @@ def main():
     st.markdown("---")
 
     # Load resources first
-    emb, rerank, coll, bm25, data = load_resources()
+    emb, coll, bm25, data = load_resources()
 
     # Sidebar with improved design
     with st.sidebar:
@@ -475,7 +490,7 @@ def main():
 
     if st.button("🔍 Rechercher les cours", type="primary", use_container_width=True):
         with st.spinner("🔄 Analyse des cours en cours..."):
-            results = search_courses(query, filters, emb, rerank, coll, bm25, data)
+            results = search_courses(query, filters, emb, coll, bm25, data)
 
         if not results:
             st.error("❌ Aucun cours trouvé pour cette section/semestre. Vérifie tes filtres.")
