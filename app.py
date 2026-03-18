@@ -15,6 +15,7 @@ import json
 import re
 import os
 import numpy as np
+import anthropic
 from job_examples import JOB_EXAMPLES
 
 # Must be first Streamlit command
@@ -217,6 +218,33 @@ def calculate_score_percentage(r):
     return r.get('display_score', 0.5)
 
 
+def expand_query(query):
+    """
+    Use Claude to expand a short query with relevant technical terms.
+    Returns a comma-separated string of terms in English and French.
+    Falls back to the original query on any error.
+    """
+    try:
+        api_key = st.secrets["ANTHROPIC_API_KEY"]
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=150,
+            system=(
+                "You are a technical vocabulary expander for academic course search. "
+                "Given a job title or description, extract key technical skills and academic topics. "
+                "Return ONLY a comma-separated list of relevant terms in both English and French. "
+                "No explanation, no preamble, no bullet points — just the terms."
+            ),
+            messages=[{"role": "user", "content": query}],
+        )
+        expanded = response.content[0].text.strip()
+        return expanded
+    except Exception as e:
+        print(f"[expand_query] API call failed, falling back to original query. Error: {e}")
+        return ""
+
+
 def search_courses(query, filters, embedder, collection, bm25, all_data):
     """
     Hybrid retrieval pipeline:
@@ -297,11 +325,21 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
 
     # Step 3: Hybrid retrieval — BM25 + Semantic on filtered subset only
 
+    # Query expansion via LLM
+    expanded_terms = expand_query(query)
+    if expanded_terms:
+        enriched_query = f"{query} {expanded_terms}"
+        print(f"[Query Expansion] Original: {query!r}")
+        print(f"[Query Expansion] Expanded: {expanded_terms!r}")
+        print(f"[Query Expansion] Enriched: {enriched_query!r}")
+    else:
+        enriched_query = query
+
     # Build a lookup: course id → position in all_data (needed for global BM25 scores)
     id_to_global_idx = {cid: idx for idx, cid in enumerate(all_data['ids'])}
 
     # --- BM25 retrieval ---
-    query_tokens = query.split()
+    query_tokens = enriched_query.split()
     all_bm25_scores = bm25.get_scores(query_tokens)  # scores for every doc in corpus
 
     bm25_scored = []
@@ -319,7 +357,7 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
         print(f"   BM25 {candidate['meta']['title'][:40]:40s} | Score: {score:.4f}")
 
     # --- Semantic retrieval ---
-    query_embedding = embedder.encode(query)
+    query_embedding = embedder.encode(enriched_query)
     query_norm = query_embedding / (np.linalg.norm(query_embedding) + 1e-10)
 
     # Fetch stored embeddings from ChromaDB for filtered candidates only
