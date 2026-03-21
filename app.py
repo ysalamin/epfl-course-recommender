@@ -245,6 +245,66 @@ def expand_query(query):
         return ""
 
 
+@st.cache_data(ttl=3600)
+def llm_rerank(query: str, candidate_tuples: tuple) -> dict | None:
+    """
+    Use Claude to rerank candidates by relevance to the query.
+    candidate_tuples: tuple of (course_id, title, content_preview) — hashable for caching.
+    Returns dict mapping course_id -> score (0-100), or None on failure.
+    """
+    try:
+        api_key = st.secrets["ANTHROPIC_API_KEY"]
+        client = anthropic.Anthropic(api_key=api_key)
+
+        courses_text = "\n".join(
+            f"{i+1}. Title: {title}\n   Preview: {preview}"
+            for i, (cid, title, preview) in enumerate(candidate_tuples)
+        )
+
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=500,
+            system=(
+                "You are a course recommendation engine for EPFL students. "
+                "Given a job description and a list of courses, rank them by relevance. "
+                "Return ONLY a JSON array of objects with 'title' and 'score' (0-100), "
+                "sorted by score descending. No explanation."
+                "Consider that foundational courses (electronics, mathematics, physics) are highly relevant to applied engineering fields," 
+                "even if their description doesn't explicitly mention the application domain."
+            ),
+            messages=[{
+                "role": "user",
+                "content": f"Job description:\n{query}\n\nCourses:\n{courses_text}"
+            }],
+        )
+
+        raw = response.content[0].text.strip()
+        # Clean markdown fences if present
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+        if raw.endswith("```"):
+            raw = raw[:-3].strip()
+        print(f"[LLM Rerank] Raw response: {raw[:200]}")
+        ranked = json.loads(raw)
+        title_to_score = {item['title']: item['score'] for item in ranked}
+
+        result = {}
+        for cid, title, _ in candidate_tuples:
+            score = title_to_score.get(title)
+            if score is None:
+                for t, s in title_to_score.items():
+                    if title.lower() in t.lower() or t.lower() in title.lower():
+                        score = s
+                        break
+            result[cid] = score if score is not None else 0
+
+        return result
+
+    except Exception as e:
+        print(f"[llm_rerank] API call failed, falling back to combined scoring. Error: {e}")
+        return None
+
+
 def search_courses(query, filters, embedder, collection, bm25, all_data):
     """
     Hybrid retrieval pipeline:
@@ -395,7 +455,7 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
     print(f"   Overlap: {len(overlap)} | Only BM25: {len(only_bm25)} | Only Semantic: {len(only_sem)}")
     print(f"   → {len(merged_candidates)} candidats pour le scoring combiné\n")
 
-    # --- Combined scoring: 0.7 * cosine_norm + 0.3 * bm25_norm ---
+    # --- Combined scoring: 0.7 * cosine_norm + 0.3 * bm25_norm (kept for fallback + comparison) ---
     id_to_cosine = {c['id']: s for c, s in semantic_scored}
     id_to_bm25 = {c['id']: s for c, s in bm25_scored}
 
@@ -409,30 +469,79 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
     cosine_norm = minmax_norm(raw_cosines)
     bm25_norm   = minmax_norm(raw_bm25s)
 
+    id_to_combined = {}
     for candidate, cn, bn in zip(merged_candidates, cosine_norm, bm25_norm):
-        candidate['score'] = 0.7 * cn + 0.3 * bn
+        combined = 0.7 * cn + 0.3 * bn
+        candidate['score'] = combined
+        id_to_combined[candidate['id']] = combined
 
-    print(f"🔍 DEBUG - Combined Score Statistics:")
+    print(f"🔍 DEBUG - Combined Score Statistics (BM25/Semantic):")
     final_scores = [c['score'] for c in merged_candidates]
     print(f"   Min score: {min(final_scores):.4f}")
     print(f"   Max score: {max(final_scores):.4f}")
     print(f"   Mean score: {sum(final_scores)/len(final_scores):.4f}\n")
 
-    merged_candidates.sort(key=lambda x: x['score'], reverse=True)
+    # --- LLM Reranking ---
+    llm_search_count = st.session_state.get('llm_search_count', 0)
+    use_llm = llm_search_count < 20
 
-    # Map final scores to [15%, 97%] display range via min-max
-    sorted_scores = [c['score'] for c in merged_candidates]
-    lo, hi = min(sorted_scores), max(sorted_scores)
-    for candidate in merged_candidates:
-        if hi > lo:
-            t = (candidate['score'] - lo) / (hi - lo)
-        else:
-            t = 0.5
-        candidate['display_score'] = 0.15 + t * (0.97 - 0.15)
+    llm_scores = None
+    if use_llm:
+        candidate_tuples = tuple(
+            (c['id'], c['meta']['title'], c['content'][:300])
+            for c in merged_candidates
+        )
+        llm_scores = llm_rerank(query, candidate_tuples)
+    else:
+        st.warning("⚠️ Limite de 20 recherches LLM par session atteinte. Utilisation du scoring BM25/sémantique.")
+        print("[LLM Rerank] Rate limit reached (20/20). Using combined BM25/semantic scoring.")
 
-    print(f"🏆 Ordre final après scoring combiné:")
-    for i, candidate in enumerate(merged_candidates, 1):
-        print(f"   #{i:2d} {candidate['meta']['title'][:40]:40s} | Score: {candidate['score']:.4f} | Display: {candidate['display_score']*100:5.1f}%")
+    if llm_scores is not None:
+        st.session_state['llm_search_count'] = llm_search_count + 1
+
+        for candidate in merged_candidates:
+            candidate['llm_score'] = llm_scores.get(candidate['id'], 0)
+
+        merged_candidates.sort(key=lambda x: x.get('llm_score', 0), reverse=True)
+
+        print(f"\n🤖 LLM Reranking vs BM25/Semantic comparison:")
+        print(f"   {'#':>2}  {'Title':40s} | LLM Score | Combined Score")
+        for i, candidate in enumerate(merged_candidates, 1):
+            combined = id_to_combined[candidate['id']]
+            llm_s = candidate.get('llm_score', 0)
+            print(f"   #{i:2d} {candidate['meta']['title'][:40]:40s} | LLM: {llm_s:5.1f}     | Combined: {combined:.4f}")
+
+        llm_score_vals = [c.get('llm_score', 0) for c in merged_candidates]
+        lo, hi = min(llm_score_vals), max(llm_score_vals)
+        for candidate in merged_candidates:
+            if hi > lo:
+                t = (candidate.get('llm_score', 0) - lo) / (hi - lo)
+            else:
+                t = 0.5
+            candidate['display_score'] = 0.15 + t * (0.97 - 0.15)
+
+        print(f"\n🏆 Ordre final après LLM reranking:")
+        for i, candidate in enumerate(merged_candidates, 1):
+            print(f"   #{i:2d} {candidate['meta']['title'][:40]:40s} | LLM: {candidate.get('llm_score', 0):5.1f} | Display: {candidate['display_score']*100:5.1f}%")
+
+    else:
+        if use_llm:
+            print("[LLM Rerank] API failed. Falling back to combined BM25/semantic scoring.")
+
+        merged_candidates.sort(key=lambda x: x['score'], reverse=True)
+
+        sorted_scores = [c['score'] for c in merged_candidates]
+        lo, hi = min(sorted_scores), max(sorted_scores)
+        for candidate in merged_candidates:
+            if hi > lo:
+                t = (candidate['score'] - lo) / (hi - lo)
+            else:
+                t = 0.5
+            candidate['display_score'] = 0.15 + t * (0.97 - 0.15)
+
+        print(f"\n🏆 Ordre final après scoring combiné (fallback):")
+        for i, candidate in enumerate(merged_candidates, 1):
+            print(f"   #{i:2d} {candidate['meta']['title'][:40]:40s} | Score: {candidate['score']:.4f} | Display: {candidate['display_score']*100:5.1f}%")
 
     return merged_candidates
 
@@ -500,9 +609,11 @@ def main():
         4. **Découvre** les cours pertinents
         """)
 
-    # Initialize session state for query
+    # Initialize session state
     if 'query' not in st.session_state:
         st.session_state.query = ""
+    if 'llm_search_count' not in st.session_state:
+        st.session_state.llm_search_count = 0
 
     # Job example picker — auto-paste on selection
     def apply_job_example():
