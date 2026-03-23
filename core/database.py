@@ -23,8 +23,6 @@ def initialize_database(embedder):
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         course_data = json.load(f)
 
-    st.info(f"📚 Chargement de {len(course_data)} cours depuis {DATA_FILE}")
-
     client = chromadb.PersistentClient(path=DB_PATH)
 
     try:
@@ -35,8 +33,6 @@ def initialize_database(embedder):
     collection = client.create_collection(name=COLLECTION_NAME)
 
     total_length = len(course_data)
-    progress_bar = st.progress(0)
-    status_text = st.empty()
 
     for i in range(0, total_length, BATCH_SIZE):
         batch = course_data[i:i + BATCH_SIZE]
@@ -65,31 +61,22 @@ def initialize_database(embedder):
                 metadatas=metadatas
             )
 
-        processed = min(i + BATCH_SIZE, total_length)
-        progress_bar.progress(processed / total_length)
-        status_text.text(f"Indexation: {processed}/{total_length} cours traités...")
-
-    progress_bar.empty()
-    status_text.empty()
-    st.success("✅ Base de données créée avec succès!")
-
     return collection
 
 
 @st.cache_resource
 def load_resources():
-    embedder = SentenceTransformer('all-MiniLM-L6-v2', device='cpu')
+    with st.spinner("Chargement de l'application..."):
+        embedder = SentenceTransformer('all-MiniLM-L6-v2', device='cpu')
 
-    if not os.path.exists(DB_PATH):
-        st.warning("⚠️ Base de données introuvable. Premier lancement détecté.")
-        st.info("🔄 Indexation des cours en cours... (cela peut prendre 1-2 minutes)")
-        collection = initialize_database(embedder)
-    else:
-        client = chromadb.PersistentClient(path=DB_PATH)
-        collection = client.get_collection(name=COLLECTION_NAME)
+        if not os.path.exists(DB_PATH):
+            collection = initialize_database(embedder)
+        else:
+            client = chromadb.PersistentClient(path=DB_PATH)
+            collection = client.get_collection(name=COLLECTION_NAME)
 
-    all_docs = collection.get()
-    tokenized_corpus = [doc.split() for doc in all_docs['documents']]
-    bm25 = BM25Okapi(tokenized_corpus)
+        all_docs = collection.get()
+        tokenized_corpus = [doc.split() for doc in all_docs['documents']]
+        bm25 = BM25Okapi(tokenized_corpus)
 
     return embedder, collection, bm25, all_docs

@@ -18,7 +18,7 @@ def load_data(filepath):
     print(f"{len(data)} courses loaded from {filepath}")
     return data
 
-def setup_chromaDB(db_path, collection_name): 
+def setup_chromaDB(db_path, collection_name):
     client = chromadb.PersistentClient(path=db_path)
 
     # Avoid duplicate
@@ -63,7 +63,7 @@ def main():
             # For the metadata, we can't stock dict, we need Jstring
             meta_str = json.dumps(metadata)
             metadatas.append({"title": title, "url": url, "metadata": meta_str})
-        
+
         if documents:
             embeddings = model.encode(documents).tolist()
             db.add(
