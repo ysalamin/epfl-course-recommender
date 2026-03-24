@@ -1,3 +1,4 @@
+import math
 import streamlit as st
 import anthropic
 import numpy as np
@@ -274,11 +275,8 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
                      [(c['meta']['title'][:30], c.get('llm_score', 0), f"{id_to_combined[c['id']]:.4f}")
                       for c in merged_candidates])
 
-        llm_score_vals = [c.get('llm_score', 0) for c in merged_candidates]
-        lo, hi = min(llm_score_vals), max(llm_score_vals)
         for candidate in merged_candidates:
-            t = (candidate.get('llm_score', 0) - lo) / (hi - lo) if hi > lo else 0.5
-            candidate['display_score'] = 0.15 + t * (0.97 - 0.15)
+            candidate['display_score'] = candidate.get('llm_score', 0) / 100.0
 
     else:
         if use_llm:
@@ -286,11 +284,9 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
 
         merged_candidates.sort(key=lambda x: x['score'], reverse=True)
 
-        sorted_scores = [c['score'] for c in merged_candidates]
-        lo, hi = min(sorted_scores), max(sorted_scores)
         for candidate in merged_candidates:
-            t = (candidate['score'] - lo) / (hi - lo) if hi > lo else 0.5
-            candidate['display_score'] = 0.15 + t * (0.97 - 0.15)
+            # sigmoid centered at 0.5 with k=4, maps [0,1] → [~0.12, ~0.88]
+            candidate['display_score'] = 1.0 / (1.0 + math.exp(-4.0 * (candidate['score'] - 0.5)))
 
     logger.debug("Final ranking: %s",
                  [(i+1, c['meta']['title'][:30], f"{c['display_score']*100:.1f}%")
