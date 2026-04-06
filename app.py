@@ -24,7 +24,7 @@ st.set_page_config(
 
 def main():
     st.title("🎓 EPFL Course Recommender")
-    st.markdown("### Trouve les cours qui matchent avec tes objectifs professionnels")
+    st.markdown("### Trouve les cours qui matchent avec tes intérêts et objectifs professionnels")
     st.markdown("---")
 
     emb, coll, bm25, data = load_resources()
@@ -91,11 +91,11 @@ def main():
     )
 
     query = st.text_area(
-        "📝 Décris le type de job ou de compétences que tu vises (optionnel)",
+        "📝 Décris ce qui t'intéresse ou colle une offre d'emploi",
         value=st.session_state.query,
         height=200,
         placeholder=(
-            "Ex: Je veux travailler en data science, faire du machine learning, analyser des données...\n\n"
+            "Ex: J'aime les maths, la crypto, et l'optimisation...\n\n"
             "Ou colle une offre d'emploi complète.\n\n"
             "ℹ️ Laisse vide pour voir tous les cours (ordre alphabétique)."
         )
@@ -155,6 +155,9 @@ def main():
                     score_pct = calculate_score_percentage(r)
                     st.markdown(f"**📊 Pertinence:** {score_pct*100:.1f}%")
                     st.progress(score_pct)
+                    reason = r.get('llm_reason', '')
+                    if reason:
+                        st.caption(f"💡 {reason}")
 
                 with st.expander("📖 Voir la description et les détails du cours"):
                     content_preview = r['content'][:800]

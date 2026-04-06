@@ -45,7 +45,7 @@ def llm_rerank(query: str, candidate_tuples: tuple) -> dict | None:
         candidate_tuples: Tuple of (course_id, title, content_preview) — hashable for caching.
 
     Returns:
-        Dict mapping course_id -> score (0-100), or None on failure.
+        Dict mapping course_id -> {'score': int (0-100), 'reason': str}, or None on failure.
     """
     try:
         client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
@@ -57,12 +57,14 @@ def llm_rerank(query: str, candidate_tuples: tuple) -> dict | None:
 
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=500,
+            max_tokens=1000,
             system=(
                 "You are a course recommendation engine for EPFL students. "
-                "Given a job description and a list of courses, rank them by relevance. "
-                "Return ONLY a JSON array of objects with 'title' and 'score' (0-100), "
-                "sorted by score descending. No explanation. "
+                "Given a job description or interest description and a list of courses, rank them by relevance. "
+                "Return ONLY a JSON array of objects with three fields: 'title', 'score' (0-100), and 'reason' "
+                "(a 1-2 sentence explanation in French of why this course is relevant or not to the query). "
+                "Example: {\"title\": \"Probabilités et statistique\", \"score\": 92, \"reason\": \"Ce cours couvre les fondamentaux de probabilités et statistiques, essentiels pour la modélisation quantitative et l'analyse de risques.\"} "
+                "Sort by score descending. No preamble, no markdown — just the JSON array. "
                 "Consider that foundational courses (electronics, mathematics, physics) are highly relevant "
                 "to applied engineering fields, even if their description doesn't explicitly mention the application domain."
             ),
@@ -81,17 +83,20 @@ def llm_rerank(query: str, candidate_tuples: tuple) -> dict | None:
         logger.debug("LLM rerank raw response: %.200s", raw)
 
         ranked = json.loads(raw)
-        title_to_score = {item['title']: item['score'] for item in ranked}
+        title_to_item = {item['title']: item for item in ranked}
 
         result = {}
         for cid, title, _ in candidate_tuples:
-            score = title_to_score.get(title)
-            if score is None:
-                for t, s in title_to_score.items():
+            item = title_to_item.get(title)
+            if item is None:
+                for t, it in title_to_item.items():
                     if title.lower() in t.lower() or t.lower() in title.lower():
-                        score = s
+                        item = it
                         break
-            result[cid] = score if score is not None else 0
+            if item is not None:
+                result[cid] = {'score': item.get('score', 0), 'reason': item.get('reason', '')}
+            else:
+                result[cid] = {'score': 0, 'reason': ''}
 
         return result
 
@@ -267,7 +272,9 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
         st.session_state['llm_search_count'] = llm_search_count + 1
 
         for candidate in merged_candidates:
-            candidate['llm_score'] = llm_scores.get(candidate['id'], 0)
+            llm_entry = llm_scores.get(candidate['id'], {'score': 0, 'reason': ''})
+            candidate['llm_score'] = llm_entry['score']
+            candidate['llm_reason'] = llm_entry['reason']
 
         merged_candidates.sort(key=lambda x: x.get('llm_score', 0), reverse=True)
 
