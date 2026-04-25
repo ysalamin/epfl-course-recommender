@@ -57,7 +57,7 @@ def llm_rerank(query: str, candidate_tuples: tuple) -> dict | None:
 
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=1000,
+            max_tokens=4000,
             system=(
                 "You are a course recommendation engine for EPFL students. "
                 "Given a job description or interest description and a list of courses, rank them by relevance. "
