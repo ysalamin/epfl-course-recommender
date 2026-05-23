@@ -5,27 +5,27 @@
 JOB_EXAMPLES = {
 
     # ── Architecture ────────────────────────────────────────────────────────────
-    "🏛️ Architecte / Urbaniste": """Position: Architecte Senior – Design Durable
+    "🏛️ Architect / Urban Planner": """Position: Senior Architect – Sustainable Design
 Location: Lausanne, Switzerland
-Studio d'architecture primé cherche un architecte passionné par la durabilité et l'innovation.
-Responsabilités:
-- Concevoir des bâtiments à énergie positive (BIPV, passive house standards).
-- Maîtrise du design paramétrique avec Rhino, Grasshopper et Revit.
-- Planification urbaine et gestion des espaces publics.
-- Conservation et réhabilitation du patrimoine architectural.
-- Coordination avec ingénieurs structures, MEP, et parties prenantes.
-- Représentation graphique avancée (rendering, BIM, maquettes physiques).
-Compétences:
-- Connaissance des normes SIA et des certifications LEED / Minergie.
-- Théorie de l'architecture et histoire de l'art.
-- Collaboration interdisciplinaire en environnement multilingue.""",
+Award-winning architecture studio seeks an architect passionate about sustainability and innovation.
+Responsibilities:
+- Design positive-energy buildings (BIPV, passive house standards).
+- Master parametric design using Rhino, Grasshopper, and Revit.
+- Urban planning and public space management.
+- Heritage conservation and architectural rehabilitation.
+- Coordinate with structural, MEP engineers, and stakeholders.
+- Advanced graphic representation (rendering, BIM, physical models).
+Skills Required:
+- Knowledge of Swiss SIA standards and LEED / Minergie certifications.
+- Architectural theory and art history.
+- Interdisciplinary collaboration in a multilingual environment.""",
 
-    # ── Chimie moléculaire et biologique ────────────────────────────────────────
-    "🔬 Chercheur·se en Chimie Médicale": """Position: Research Scientist – Medicinal Chemistry
+    # ── Molecular and Biological Chemistry ──────────────────────────────────────
+    "🔬 Medicinal Chemistry Researcher": """Position: Research Scientist – Medicinal Chemistry
 Location: Basel, Switzerland
 Leading pharmaceutical company seeks a medicinal chemist to drive early-stage drug discovery.
 Responsibilities:
-- Design, synthesise and characterise novel small-molecule drug candidates.
+- Design, synthesise, and characterise novel small-molecule drug candidates.
 - Structure-Activity Relationship (SAR) optimisation using computational tools.
 - NMR, mass spectrometry, and HPLC analysis of synthesised compounds.
 - Collaboration with structural biology and pharmacology teams.
@@ -53,8 +53,8 @@ Skills Required:
 - SQL and data warehousing best practices.
 - Excellent Python coding and software engineering skills.""",
 
-    # ── Génie chimique et biotechnologie ────────────────────────────────────────
-    "⚗️ Ingénieur·e Procédés Chimiques": """Position: Process Engineer – Bioprocess Development
+    # ── Chemical Engineering and Biotechnology ──────────────────────────────────
+    "⚗️ Chemical Process Engineer": """Position: Process Engineer – Bioprocess Development
 Location: Visp, Switzerland
 Lonza is hiring a process engineer to scale biopharmaceutical manufacturing.
 Responsibilities:
@@ -70,8 +70,8 @@ Skills Required:
 - Understanding of thermodynamics, reaction kinetics, and transport phenomena.
 - Familiarity with Quality by Design (QbD) principles.""",
 
-    # ── Génie civil ─────────────────────────────────────────────────────────────
-    "🏗️ Ingénieur·e Civil·e Structures": """Position: Structural Civil Engineer
+    # ── Civil Engineering ─────────────────────────────────────────────────────────
+    "🏗️ Structural Civil Engineer": """Position: Structural Civil Engineer
 Location: Fribourg, Switzerland
 Design sustainable infrastructure, bridges, and buildings for the next century.
 Responsibilities:
@@ -87,8 +87,8 @@ Skills Required:
 - Project management and site supervision experience.
 - AutoCAD and GIS tools for spatial analysis.""",
 
-    # ── Génie mécanique ─────────────────────────────────────────────────────────
-    "⚙️ Ingénieur·e Mécanique Design": """Position: Mechanical Design Engineer – Precision Systems
+    # ── Mechanical Engineering ─────────────────────────────────────────────────────
+    "⚙️ Mechanical Design Engineer": """Position: Mechanical Design Engineer – Precision Systems
 Location: Bern, Switzerland
 Join our team developing high-precision mechanical systems for industrial robotics.
 Responsibilities:
@@ -104,8 +104,8 @@ Skills Required:
 - Knowledge of manufacturing processes: casting, forging, machining.
 - DFMA (Design for Manufacture and Assembly) principles.""",
 
-    # ── Génie nucléaire ──────────────────────────────────────────────────────────
-    "☢️ Ingénieur·e Nucléaire": """Position: Nuclear Systems Engineer
+    # ── Nuclear Engineering ──────────────────────────────────────────────────────
+    "☢️ Nuclear Engineer": """Position: Nuclear Systems Engineer
 Location: Würenlingen (PSI), Switzerland
 Paul Scherrer Institut seeks an engineer for advanced reactor and safety research.
 Responsibilities:
@@ -121,8 +121,8 @@ Skills Required:
 - Regulatory frameworks: IAEA safety standards, ENSI requirements.
 - Programming: Python, FORTRAN, or C++ for nuclear codes.""",
 
-    # ── Génie électrique et électronique ────────────────────────────────────────
-    "⚡ Ingénieur·e Électrique / Hardware": """Position: Hardware / Electrical Engineer – Embedded Systems
+    # ── Electrical and Electronic Engineering ────────────────────────────────────
+    "⚡ Electrical / Hardware Engineer": """Position: Hardware / Electrical Engineer – Embedded Systems
 Location: Neuchâtel, Switzerland
 Develop high-performance electronic systems for IoT and medical devices.
 Responsibilities:
@@ -138,8 +138,8 @@ Skills Required:
 - Oscilloscope, logic analyser, and network analyser proficiency.
 - Safety standards for medical electronics (IEC 60601).""",
 
-    # ── Humanités digitales ──────────────────────────────────────────────────────
-    "📚 Spécialiste Humanités Digitales": """Position: Digital Humanities Researcher / Data Curator
+    # ── Digital Humanities ──────────────────────────────────────────────────────────
+    "📚 Digital Humanities Specialist": """Position: Digital Humanities Researcher / Data Curator
 Location: Geneva, Switzerland
 Cultural heritage institution seeks a digital humanities expert.
 Responsibilities:
@@ -155,7 +155,7 @@ Skills Required:
 - Critical analysis of algorithmic bias in cultural datasets.
 - Science communication and academic writing.""",
 
-    # ── Informatique ────────────────────────────────────────────────────────────
+    # ── Computer Science ────────────────────────────────────────────────────────────
     "💻 Software Engineer (Backend / Systems)": """Position: Senior Software Engineer – Distributed Systems
 Location: Zurich, Switzerland
 Fast-growing fintech building real-time payment infrastructure at scale.
@@ -172,8 +172,8 @@ Skills Required:
 - CI/CD pipelines, GitOps, infrastructure-as-code (Terraform).
 - Security best practices: OAuth2, RBAC, secret management.""",
 
-    # ── Informatique - Cybersecurity ─────────────────────────────────────────────
-    "🔐 Ingénieur·e Cybersécurité": """Position: Cybersecurity Engineer – Offensive & Defensive Security
+    # ── Computer Science - Cybersecurity ─────────────────────────────────────────────
+    "🔐 Cybersecurity Engineer": """Position: Cybersecurity Engineer – Offensive & Defensive Security
 Location: Zurich, Switzerland
 Elite security team protecting critical financial and cloud infrastructure.
 Responsibilities:
@@ -189,8 +189,8 @@ Skills Required:
 - Applied cryptography: TLS, PKI, zero-knowledge proofs, post-quantum schemes.
 - CTF experience and knowledge of MITRE ATT&CK framework.""",
 
-    # ── Ingénierie des sciences du vivant ───────────────────────────────────────
-    "🧬 Ingénieur·e Biomédical·e": """Position: R&D Biomedical Engineer – Medical Devices
+    # ── Life Sciences Engineering ───────────────────────────────────────────────
+    "🧬 Biomedical Engineer": """Position: R&D Biomedical Engineer – Medical Devices
 Location: Geneva, Switzerland
 Design the next generation of wearable and implantable medical devices.
 Responsibilities:
@@ -206,8 +206,8 @@ Skills Required:
 - Signal processing: digital filters, FFT, wavelet transforms.
 - Clinical study design and statistical analysis (MATLAB, R).""",
 
-    # ── Ingénierie financière ────────────────────────────────────────────────────
-    "📈 Ingénieur·e en Finance Quantitative": """Position: Quantitative Analyst (Quant) – Derivatives Pricing
+    # ── Financial Engineering ────────────────────────────────────────────────────
+    "📈 Quantitative Finance Engineer": """Position: Quantitative Analyst (Quant) – Derivatives Pricing
 Location: Geneva, Switzerland
 Global asset manager seeks a quantitative engineer for structured products.
 Responsibilities:
@@ -223,8 +223,8 @@ Skills Required:
 - Market microstructure and execution algorithms (TWAP, VWAP).
 - Bloomberg / Refinitiv data APIs and SQL for financial databases.""",
 
-    # ── Ingénierie mathématique ──────────────────────────────────────────────────
-    "🧮 Ingénieur·e en Mathématiques Appliquées": """Position: Applied Mathematician – Optimisation & Simulation
+    # ── Applied Mathematics ──────────────────────────────────────────────────────
+    "🧮 Applied Mathematics Engineer": """Position: Applied Mathematician – Optimisation & Simulation
 Location: Lausanne, Switzerland
 Engineering consultancy seeks an applied mathematician for industrial R&D.
 Responsibilities:
@@ -240,8 +240,8 @@ Skills Required:
 - Graph theory and network optimisation.
 - Scientific computing tools: NumPy, SciPy, FEniCS, CVXPY.""",
 
-    # ── Ingénierie physique ──────────────────────────────────────────────────────
-    "🔭 Ingénieur·e en Physique / Instrumentation": """Position: Instrumentation Physicist – R&D Lab Systems
+    # ── Physics Engineering ──────────────────────────────────────────────────────
+    "🔭 Physics / Instrumentation Engineer": """Position: Instrumentation Physicist – R&D Lab Systems
 Location: Geneva (CERN area), Switzerland
 High-energy physics facility seeks an instrumentation engineer.
 Responsibilities:
@@ -257,7 +257,7 @@ Skills Required:
 - Knowledge of accelerator physics or detector physics.
 - Technical writing for scientific publications and internal reports.""",
 
-    # ── Management durable et technologie ───────────────────────────────────────
+    # ── Sustainable Management and Technology ───────────────────────────────────
     "🌱 Sustainability Manager / ESG Analyst": """Position: Sustainability Strategy Manager
 Location: Zug, Switzerland
 Global corporation integrating ESG into core business strategy.
@@ -274,7 +274,7 @@ Skills Required:
 - Understanding of climate science and policy (Paris Agreement, EU Taxonomy).
 - Strong communication and cross-functional project management skills.""",
 
-    # ── Management, technologie et entrepreneuriat ───────────────────────────────
+    # ── Management, Technology and Entrepreneurship ──────────────────────────────
     "🚀 Product Manager / Tech Entrepreneur": """Position: Technical Product Manager – B2B SaaS
 Location: Zurich, Switzerland
 High-growth startup building enterprise AI tools for the manufacturing sector.
@@ -291,8 +291,8 @@ Skills Required:
 - Venture capital landscape, startup financing, and pitch deck creation.
 - Excellent written and verbal communication in English (French a plus).""",
 
-    # ── Mathématiques - master ───────────────────────────────────────────────────
-    "∞ Mathématicien·ne / Actuaire": """Position: Actuarial Analyst – Life & Pension Risk
+    # ── Mathematics - Master ─────────────────────────────────────────────────────
+    "∞ Mathematician / Actuary": """Position: Actuarial Analyst – Life & Pension Risk
 Location: Zurich, Switzerland
 Leading reinsurance firm seeks a mathematically rigorous actuarial analyst.
 Responsibilities:
@@ -309,7 +309,7 @@ Skills Required:
 - Financial mathematics: interest rate models, bond pricing, duration.""",
 
     # ── Micro- and Nanotechnologies for Integrated Systems ─────────────────────
-    "🔬 Ingénieur·e MEMS / Nanotechnologies": """Position: MEMS & Nanotechnology Engineer
+    "🔬 MEMS / Nanotechnologies Engineer": """Position: MEMS & Nanotechnology Engineer
 Location: Neuchâtel, Switzerland
 CSEM is hiring an engineer to develop next-generation microsystems.
 Responsibilities:
@@ -325,8 +325,8 @@ Skills Required:
 - Lab-on-chip and microfluidic platform development.
 - Thin-film deposition and nanopatterning techniques (e-beam lithography, NIL).""",
 
-    # ── Microtechnique ───────────────────────────────────────────────────────────
-    "🔧 Ingénieur·e en Microtechnique": """Position: Precision Microtechnology Engineer – Watch & MedTech
+    # ── Microengineering ─────────────────────────────────────────────────────────
+    "🔧 Microengineering Engineer": """Position: Precision Microtechnology Engineer – Watch & MedTech
 Location: Le Locle, Switzerland
 Leading Swiss watchmaker and medtech spinoff seeks a microtechnology engineer.
 Responsibilities:
@@ -343,7 +343,7 @@ Skills Required:
 - Metrology: coordinate measuring machines (CMM), interferometry.""",
 
     # ── Neuro-X ──────────────────────────────────────────────────────────────────
-    "🧠 Neuroscientist Computationnel·le": """Position: Computational Neuroscientist / NeuroAI Researcher
+    "🧠 Computational Neuroscientist": """Position: Computational Neuroscientist / NeuroAI Researcher
 Location: Lausanne, Switzerland
 Blue Brain Project seeks a scientist at the intersection of AI and neuroscience.
 Responsibilities:
@@ -359,8 +359,8 @@ Skills Required:
 - Python, Julia, or MATLAB for scientific computing.
 - Neuroimaging analysis: fMRI preprocessing (FSL, SPM), spike sorting.""",
 
-    # ── Physique - master ────────────────────────────────────────────────────────
-    "⚛️ Physicien·ne de Recherche": """Position: Research Physicist – Condensed Matter / Quantum Materials
+    # ── Physics - Master ──────────────────────────────────────────────────────────
+    "⚛️ Research Physicist": """Position: Research Physicist – Condensed Matter / Quantum Materials
 Location: Lausanne (EPFL) / PSI Villigen
 Cutting-edge physics laboratory seeks a postdoctoral or senior PhD-level physicist.
 Responsibilities:
@@ -376,8 +376,8 @@ Skills Required:
 - Numerical methods: DFT (VASP, Quantum ESPRESSO), Monte Carlo, tensor networks.
 - Collaboration in large international research consortia.""",
 
-    # ── Robotique ────────────────────────────────────────────────────────────────
-    "🤖 Ingénieur·e en Robotique": """Position: Robotics Software Engineer – Autonomous Systems
+    # ── Robotics ────────────────────────────────────────────────────────────────
+    "🤖 Robotics Engineer": """Position: Robotics Software Engineer – Autonomous Systems
 Location: Lausanne, Switzerland
 Autonomous robot company building next-gen warehouse and logistics systems.
 Responsibilities:
@@ -393,8 +393,8 @@ Skills Required:
 - Safety-critical software development (functional safety, IEC 61508).
 - Knowledge of reinforcement learning for robot skill acquisition.""",
 
-    # ── Science et génie des matériaux ──────────────────────────────────────────
-    "🧪 Ingénieur·e R&D Matériaux": """Position: Materials R&D Engineer – Energy Applications
+    # ── Materials Science and Engineering ────────────────────────────────────────
+    "🧪 Materials R&D Engineer": """Position: Materials R&D Engineer – Energy Applications
 Location: Sion, Switzerland
 Battery startup developing next-generation solid-state electrolytes.
 Responsibilities:
@@ -410,8 +410,8 @@ Skills Required:
 - Metallurgy and mechanical properties characterisation (tensile, hardness).
 - Data analysis using Python or MATLAB for materials informatics.""",
 
-    # ── Science et ingénierie computationnelles ──────────────────────────────────
-    "🖥️ Ingénieur·e en Calcul Scientifique / HPC": """Position: HPC / Scientific Computing Engineer
+    # ── Computational Science and Engineering ────────────────────────────────────
+    "🖥️ Computational Science / HPC Engineer": """Position: HPC / Scientific Computing Engineer
 Location: Lugano (CSCS), Switzerland
 Swiss National Supercomputing Centre seeks a computational scientist.
 Responsibilities:
@@ -427,8 +427,8 @@ Skills Required:
 - Domain knowledge in at least one field: fluid dynamics, molecular dynamics, quantum chemistry.
 - Strong C++17/20 and Python; optional: Julia, Chapel.""",
 
-    # ── Science et ingénierie quantiques ────────────────────────────────────────
-    "⚛️ Ingénieur·e en Technologie Quantique": """Position: Quantum Hardware Engineer – Superconducting Qubits
+    # ── Quantum Science and Engineering ──────────────────────────────────────────
+    "⚛️ Quantum Technology Engineer": """Position: Quantum Hardware Engineer – Superconducting Qubits
 Location: Zurich, Switzerland
 ETH/EPFL spinoff building scalable quantum processors for cloud quantum computing.
 Responsibilities:
@@ -444,8 +444,8 @@ Skills Required:
 - Cryogenics: dilution refrigerator operation and troubleshooting.
 - FPGA-based control electronics (Zurich Instruments, Qblox).""",
 
-    # ── Science et technologie de l'énergie ─────────────────────────────────────
-    "⚡ Ingénieur·e Systèmes Énergétiques": """Position: Energy Systems Engineer – Grid Decarbonisation
+    # ── Energy Science and Technology ───────────────────────────────────────────
+    "⚡ Energy Systems Engineer": """Position: Energy Systems Engineer – Grid Decarbonisation
 Location: Geneva, Switzerland
 Energy transition consultancy seeks an engineer to model future power systems.
 Responsibilities:
@@ -461,8 +461,8 @@ Skills Required:
 - Programming: Python (PyPSA, PandaPower), MATLAB/Simulink.
 - Life cycle assessment (LCA) applied to energy systems.""",
 
-    # ── Sciences et ingénierie de l'environnement ───────────────────────────────
-    "🌍 Ingénieur·e en Environnement": """Position: Environmental Engineer – Water & Climate
+    # ── Environmental Sciences and Engineering ───────────────────────────────────
+    "🌍 Environmental Engineer": """Position: Environmental Engineer – Water & Climate
 Location: Lausanne, Switzerland
 Cantonal environmental agency and EPFL spinoff seek an environmental engineer.
 Responsibilities:
@@ -478,8 +478,8 @@ Skills Required:
 - Knowledge of Swiss and EU environmental regulations (GSchG, ChemRRV).
 - Ecological engineering and nature-based solutions.""",
 
-    # ── Statistique ─────────────────────────────────────────────────────────────
-    "📉 Statisticien·ne / Biostatisticien·ne": """Position: Senior Biostatistician – Clinical Trials
+    # ── Statistics ───────────────────────────────────────────────────────────────
+    "📉 Statistician / Biostatistician": """Position: Senior Biostatistician – Clinical Trials
 Location: Basel, Switzerland
 Top-10 pharma company seeks a senior biostatistician for oncology clinical development.
 Responsibilities:
@@ -495,8 +495,8 @@ Skills Required:
 - Handling missing data: MCAR/MAR/MNAR mechanisms, multiple imputation.
 - Communication of statistical results to non-statisticians and regulatory agencies.""",
 
-    # ── Systèmes urbains ─────────────────────────────────────────────────────────
-    "🏙️ Planificateur·rice de Systèmes Urbains": """Position: Urban Systems Planner / Smart City Analyst
+    # ── Urban Systems ───────────────────────────────────────────────────────────
+    "🏙️ Urban Systems Planner": """Position: Urban Systems Planner / Smart City Analyst
 Location: Lausanne, Switzerland
 Cantonal planning office and smart city startup seek an urban systems specialist.
 Responsibilities:

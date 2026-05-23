@@ -9,7 +9,7 @@ except ImportError:
 
 import streamlit as st
 from job_examples import JOB_EXAMPLES
-from core.utils import ALL_SECTIONS, parse_course_metadata, calculate_score_percentage
+from core.utils import ALL_SECTIONS, SECTION_LANGUAGE_MAPPING, parse_course_metadata, calculate_score_percentage
 from core.database import load_resources
 from core.search import search_courses
 
@@ -24,51 +24,52 @@ st.set_page_config(
 
 def main():
     st.title("🎓 EPFL Course Recommender")
-    st.markdown("### Trouve les cours qui matchent avec tes intérêts et objectifs professionnels")
+    st.markdown("### Find courses that match your interests and career goals")
     st.markdown("---")
 
     emb, coll, bm25, data = load_resources()
 
     with st.sidebar:
-        st.markdown("# 🔍 Filtres")
-        st.markdown("Personnalise ta recherche de cours")
+        st.markdown("# 🔍 Filters")
+        st.markdown("Customize your course search")
         st.markdown("---")
 
         section_display_names = [entry[0] for entry in ALL_SECTIONS]
         selected_display = st.selectbox(
             "🎯 Section / Programme",
             section_display_names,
-            help="Sélectionne ta section — le niveau (Bachelor/Master) est indiqué entre parenthèses"
+            help="Select your section — the level (Bachelor/Master) is shown in parentheses"
         )
 
         _, section, level = next(e for e in ALL_SECTIONS if e[0] == selected_display)
 
         semester_options = ["BA3", "BA4", "BA5", "BA6"] if level == "Bachelor" else ["MA1", "MA2", "MA3", "MA4"]
 
-        semester_filter = st.selectbox("📅 Semestre", semester_options)
+        semester_filter = st.selectbox("📅 Semester", semester_options)
 
         course_type_filter = st.radio(
-            "📌 Type de cours",
-            ["Optionnel", "Obligatoire", "Tous"],
+            "📌 Course Type",
+            ["Optional", "Mandatory", "All"],
             index=0,
             horizontal=True,
         )
 
         st.markdown("---")
 
-        if st.button("🔄 Réinitialiser", use_container_width=True, help="Réinitialise la recherche"):
+        if st.button("🔄 Reset", use_container_width=True, help="Reset the search"):
             st.session_state.query = ""
             st.rerun()
 
-        filters = (level, section, semester_filter, course_type_filter)
+        _COURSE_TYPE_MAP = {"Optional": "Optionnel", "Mandatory": "Obligatoire", "All": "All"}
+        filters = (level, SECTION_LANGUAGE_MAPPING[section], semester_filter, _COURSE_TYPE_MAP[course_type_filter])
 
         st.markdown("---")
-        st.markdown("### 💡 Comment ça marche ?")
+        st.markdown("### 💡 How does it work?")
         st.markdown("""
-        1. **Sélectionne** ta section (Bachelor/Master inclus)
-        2. **Choisis** ton semestre
-        3. **Décris** ton job de rêve
-        4. **Découvre** les cours pertinents
+        1. **Select** your section (Bachelor/Master included)
+        2. **Choose** your semester
+        3. **Describe** your dream job
+        4. **Discover** relevant courses
         """)
 
     if 'query' not in st.session_state:
@@ -82,40 +83,40 @@ def main():
             st.session_state.query = JOB_EXAMPLES[key]
 
     st.selectbox(
-        "💼 Exemple d'offre d'emploi",
+        "💼 Job Description Example",
         options=[""] + list(JOB_EXAMPLES.keys()),
         index=0,
         key="job_example_selector",
         on_change=apply_job_example,
-        format_func=lambda x: "-- Sélectionne un exemple --" if x == "" else x,
+        format_func=lambda x: "-- Select an example --" if x == "" else x,
     )
 
     query = st.text_area(
-        "📝 Décris ce qui t'intéresse ou colle une offre d'emploi",
+        "📝 Describe what interests you or paste a job posting",
         value=st.session_state.query,
         height=200,
         placeholder=(
-            "Ex: J'aime les maths, la crypto, et l'optimisation...\n\n"
-            "Ou colle une offre d'emploi complète.\n\n"
-            "ℹ️ Laisse vide pour voir tous les cours (ordre alphabétique)."
+            "Ex: I like math, cryptography, and optimization...\n\n"
+            "Or paste a full job posting.\n\n"
+            "ℹ️ Leave empty to browse all courses (alphabetical order)."
         )
     )
 
-    if st.button("🔍 Rechercher les cours", type="primary", use_container_width=True):
-        with st.spinner("🔄 Analyse des cours en cours..."):
+    if st.button("🔍 Search courses", type="primary", use_container_width=True):
+        with st.spinner("🔄 Analyzing courses..."):
             results = search_courses(query, filters, emb, coll, bm25, data)
 
         if not results:
-            st.error("❌ Aucun cours trouvé pour cette section/semestre. Vérifie tes filtres.")
+            st.error("❌ No courses found for this section/semester. Check your filters.")
             return
 
         st.markdown("---")
         n = len(results)
         plural = "s" if n > 1 else ""
         if query and query.strip():
-            st.success(f"✅ **{n} cour{plural} trouvé{plural}** (triés par pertinence)")
+            st.success(f"✅ **{n} course{plural} found** (sorted by relevance)")
         else:
-            st.info(f"📚 **{n} cour{plural} disponible{plural}** (ordre alphabétique)")
+            st.info(f"📚 **{n} course{plural} available** (alphabetical order)")
 
         st.markdown("")
 
@@ -134,37 +135,37 @@ def main():
                     st.markdown("**📋 Code**")
                     st.code(course_info['code'])
                 with col2:
-                    st.markdown("**🎓 Crédits**")
+                    st.markdown("**🎓 Credits**")
                     st.code(course_info['credits'])
                 with col3:
                     st.markdown("**🏫 Section**")
                     st.code(r['section'][:20] + "..." if len(r['section']) > 20 else r['section'])
                 with col4:
-                    st.markdown("**📅 Semestre**")
+                    st.markdown("**📅 Semester**")
                     st.code(r['semester'])
 
                 col5, col6 = st.columns(2)
                 with col5:
-                    st.markdown("**👨‍🏫 Enseignant**")
+                    st.markdown("**👨‍🏫 Instructor**")
                     st.caption(course_info['professor'])
                 with col6:
-                    st.markdown("**🌐 Langue**")
+                    st.markdown("**🌐 Language**")
                     st.caption(course_info['language'])
 
                 if query and query.strip():
                     score_pct = calculate_score_percentage(r)
-                    st.markdown(f"**📊 Pertinence:** {score_pct*100:.1f}%")
+                    st.markdown(f"**📊 Relevance:** {score_pct*100:.1f}%")
                     st.progress(score_pct)
                     reason = r.get('llm_reason', '')
                     if reason:
                         st.caption(f"💡 {reason}")
 
-                with st.expander("📖 Voir la description et les détails du cours"):
+                with st.expander("📖 View course description and details"):
                     content_preview = r['content'][:800]
                     if len(r['content']) > 800:
                         content_preview += "..."
                     st.markdown(content_preview)
-                    st.markdown(f"[🔗 Voir la page complète du cours]({r['meta']['url']})")
+                    st.markdown(f"[🔗 View full course page]({r['meta']['url']})")
 
                 st.markdown("---")
 

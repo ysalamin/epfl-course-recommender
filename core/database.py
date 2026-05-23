@@ -17,7 +17,7 @@ def initialize_database(embedder):
     BATCH_SIZE = 50
 
     if not os.path.exists(DATA_FILE):
-        st.error(f"❌ Fichier de données introuvable: {DATA_FILE}")
+        st.error(f"❌ Data file not found: {DATA_FILE}")
         st.stop()
 
     with open(DATA_FILE, "r", encoding="utf-8") as f:
@@ -66,7 +66,7 @@ def initialize_database(embedder):
 
 @st.cache_resource
 def load_resources():
-    with st.spinner("Chargement de l'application..."):
+    with st.spinner("Loading application..."):
         embedder = SentenceTransformer('all-MiniLM-L6-v2', device='cpu')
 
         if not os.path.exists(DB_PATH):

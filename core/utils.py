@@ -7,26 +7,66 @@ TOP_K_RETRIEVAL = 20  # How many candidates each retrieval pass (BM25 + semantic
 
 # Allowlist for sections (separate Bachelor and Master lists)
 BACHELOR_SECTIONS = [
-    'Architecture', 'Chimie', 'Chimie et génie chimique', 'Génie chimique',
-    'Génie civil', 'Génie mécanique', 'Génie électrique et électronique',
-    'Informatique', 'Ingénierie des sciences du vivant', 'Mathématiques',
-    'Microtechnique', 'Physique', 'Science et génie des matériaux',
-    'Sciences et ingénierie de l\'environnement', 'Systèmes de communication'
+    'Architecture', 'Chemistry', 'Chemistry and Chemical Engineering', 'Chemical Engineering',
+    'Civil Engineering', 'Mechanical Engineering', 'Electrical and Electronic Engineering',
+    'Computer Science', 'Life Sciences Engineering', 'Mathematics',
+    'Microengineering', 'Physics', 'Materials Science and Engineering',
+    'Environmental Sciences and Engineering', 'Communication Systems'
 ]
 
 MASTER_SECTIONS = [
-    'Architecture', 'Chimie moléculaire et biologique', 'Data Science',
-    'Génie chimique et biotechnologie', 'Génie civil', 'Génie mécanique',
-    'Génie nucléaire', 'Génie électrique et électronique', 'Humanités digitales',
-    'Informatique', 'Informatique - Cybersecurity', 'Ingénierie des sciences du vivant',
-    'Ingénierie financière', 'Ingénierie mathématique', 'Ingénierie physique',
-    'Management durable et technologie', 'Management, technologie et entrepreneuriat',
-    'Mathématiques - master', 'Micro- and Nanotechnologies for Integrated Systems',
-    'Microtechnique', 'Neuro-X', 'Physique - master', 'Robotique',
-    'Science et génie des matériaux', 'Science et ingénierie computationnelles',
-    'Science et ingénierie quantiques', 'Science et technologie de l\'énergie',
-    'Sciences et ingénierie de l\'environnement', 'Statistique', 'Systèmes urbains'
+    'Architecture', 'Molecular and Biological Chemistry', 'Data Science',
+    'Chemical Engineering and Biotechnology', 'Civil Engineering', 'Mechanical Engineering',
+    'Nuclear Engineering', 'Electrical and Electronic Engineering', 'Digital Humanities',
+    'Computer Science', 'Computer Science - Cybersecurity', 'Life Sciences Engineering',
+    'Financial Engineering', 'Mathematical Engineering', 'Physics Engineering',
+    'Sustainable Management and Technology', 'Management, Technology and Entrepreneurship',
+    'Mathematics - master', 'Micro- and Nanotechnologies for Integrated Systems',
+    'Microengineering', 'Neuro-X', 'Physics - master', 'Robotics',
+    'Materials Science and Engineering', 'Computational Science and Engineering',
+    'Quantum Science and Engineering', 'Energy Science and Technology',
+    'Environmental Sciences and Engineering', 'Statistics', 'Urban Systems'
 ]
+SECTION_LANGUAGE_MAPPING = {
+    # Bachelor
+    'Architecture': 'Architecture',
+    'Chemistry': 'Chimie',
+    'Chemistry and Chemical Engineering': 'Chimie et génie chimique',
+    'Chemical Engineering': 'Génie chimique',
+    'Civil Engineering': 'Génie civil',
+    'Mechanical Engineering': 'Génie mécanique',
+    'Electrical and Electronic Engineering': 'Génie électrique et électronique',
+    'Computer Science': 'Informatique',
+    'Life Sciences Engineering': 'Ingénierie des sciences du vivant',
+    'Mathematics': 'Mathématiques',
+    'Microengineering': 'Microtechnique',
+    'Physics': 'Physique',
+    'Materials Science and Engineering': 'Science et génie des matériaux',
+    'Environmental Sciences and Engineering': 'Sciences et ingénierie de l\'environnement',
+    'Communication Systems': 'Systèmes de communication',
+    # Master
+    'Molecular and Biological Chemistry': 'Chimie moléculaire et biologique',
+    'Data Science': 'Data Science',
+    'Chemical Engineering and Biotechnology': 'Génie chimique et biotechnologie',
+    'Nuclear Engineering': 'Génie nucléaire',
+    'Digital Humanities': 'Humanités digitales',
+    'Computer Science - Cybersecurity': 'Informatique - Cybersecurity',
+    'Financial Engineering': 'Ingénierie financière',
+    'Mathematical Engineering': 'Ingénierie mathématique',
+    'Physics Engineering': 'Ingénierie physique',
+    'Sustainable Management and Technology': 'Management durable et technologie',
+    'Management, Technology and Entrepreneurship': 'Management, technologie et entrepreneuriat',
+    'Mathematics - master': 'Mathématiques - master',
+    'Micro- and Nanotechnologies for Integrated Systems': 'Micro- and Nanotechnologies for Integrated Systems',
+    'Neuro-X': 'Neuro-X',
+    'Physics - master': 'Physique - master',
+    'Robotics': 'Robotique',
+    'Computational Science and Engineering': 'Science et ingénierie computationnelles',
+    'Quantum Science and Engineering': 'Science et ingénierie quantiques',
+    'Energy Science and Technology': 'Science et technologie de l\'énergie',
+    'Statistics': 'Statistique',
+    'Urban Systems': 'Systèmes urbains',
+}
 
 # Combined list of (display_name, section_name, level), sorted alphabetically
 ALL_SECTIONS = sorted(
@@ -41,8 +81,8 @@ def parse_course_metadata(content):
     metadata = {
         "code": "N/A",
         "credits": "N/A",
-        "professor": "Non spécifié",
-        "language": "Non spécifié"
+        "professor": "Not specified",
+        "language": "Not specified"
     }
 
     code_match = re.search(r'\b([A-Z]+-\d+)\b', content)

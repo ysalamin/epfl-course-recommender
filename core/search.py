@@ -62,8 +62,8 @@ def llm_rerank(query: str, candidate_tuples: tuple) -> dict | None:
                 "You are a course recommendation engine for EPFL students. "
                 "Given a job description or interest description and a list of courses, rank them by relevance. "
                 "Return ONLY a JSON array of objects with three fields: 'title', 'score' (0-100), and 'reason' "
-                "(a 1-2 sentence explanation in French of why this course is relevant or not to the query). "
-                "Example: {\"title\": \"Probabilités et statistique\", \"score\": 92, \"reason\": \"Ce cours couvre les fondamentaux de probabilités et statistiques, essentiels pour la modélisation quantitative et l'analyse de risques.\"} "
+                "(a 1-2 sentence explanation in English of why this course is relevant or not to the query). "
+                "Example: {\"title\": \"Probability and Statistics\", \"score\": 92, \"reason\": \"This course covers the fundamentals of probability and statistics, essential for quantitative modeling and risk analysis.\"} "
                 "Sort by score descending. No preamble, no markdown — just the JSON array. "
                 "Consider that foundational courses (electronics, mathematics, physics) are highly relevant "
                 "to applied engineering fields, even if their description doesn't explicitly mention the application domain."
@@ -138,7 +138,7 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
 
             level_match = (lvl == target_level)
             section_match = (sec == target_section)
-            type_match = True if course_type_filter == "Tous" else (course_type == course_type_filter)
+            type_match = True if course_type_filter == "All" else (course_type == course_type_filter)
             semester_match = (sem == semester_filter)
 
             if level_match and section_match and type_match and semester_match:
@@ -265,7 +265,7 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
         )
         llm_scores = llm_rerank(query, candidate_tuples)
     else:
-        st.warning("⚠️ Limite de 20 recherches LLM par session atteinte. Utilisation du scoring BM25/sémantique.")
+        st.warning("⚠️ LLM search limit of 20 per session reached. Falling back to BM25/semantic scoring.")
         logger.info("LLM rerank rate limit reached (%d/20).", llm_search_count)
 
     if llm_scores is not None:
