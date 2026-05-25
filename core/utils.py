@@ -68,6 +68,25 @@ SECTION_LANGUAGE_MAPPING = {
     'Urban Systems': 'Systèmes urbains',
 }
 
+# Course type filter map: UI label -> value passed to search pipeline
+# "Hors plan" is a sentinel recognised by search.py; it is never matched against DB metadata.
+COURSE_TYPE_MAP = {
+    "Optional":     "Optionnel",
+    "Mandatory":    "Obligatoire",
+    "All":          "All",
+    "Out-of-plan":  "Hors plan",
+}
+
+# Semesters that qualify as "out-of-plan" for Bachelor (2nd and 3rd year only)
+OUT_OF_PLAN_SEMESTERS = {"BA3", "BA4", "BA5", "BA6"}
+
+# Master UI semester labels → sets of actual DB semester values
+# "Fall" covers MA1 + MA3 (odd); "Spring" covers MA2 + MA4 (even)
+MASTER_SEMESTER_MAP: dict[str, set[str]] = {
+    "Fall":   {"MA1", "MA3"},
+    "Spring": {"MA2", "MA4"},
+}
+
 # Combined list of (display_name, section_name, level), sorted alphabetically
 ALL_SECTIONS = sorted(
     [(f"{s} (Bachelor)", s, "Bachelor") for s in BACHELOR_SECTIONS] +

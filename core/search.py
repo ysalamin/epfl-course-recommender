@@ -5,7 +5,7 @@ import numpy as np
 import json
 import logging
 
-from core.utils import TOP_K_RETRIEVAL
+from core.utils import TOP_K_RETRIEVAL, OUT_OF_PLAN_SEMESTERS, MASTER_SEMESTER_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -119,9 +119,23 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
     """
     target_level, target_section, semester_filter, course_type_filter = filters
 
+    is_out_of_plan = (course_type_filter == "Hors plan")
+
+    # Parity-aware out-of-plan semester set, resolved once before the scan loop.
+    #   Bachelor: "BA5" (odd) → {BA3, BA5};  "BA6" (even) → {BA4, BA6}
+    #   Master:   "Fall"      → {MA1, MA3};  "Spring"     → {MA2, MA4}
+    if is_out_of_plan:
+        if target_level == "Bachelor":
+            user_sem_parity = int(semester_filter[2:]) % 2   # "BA5" → 1 (odd)
+            out_of_plan_semesters = {s for s in OUT_OF_PLAN_SEMESTERS if int(s[2:]) % 2 == user_sem_parity}
+        else:  # Master — semester_filter is "Fall" or "Spring"
+            out_of_plan_semesters = MASTER_SEMESTER_MAP[semester_filter]
+    else:
+        out_of_plan_semesters = set()    # unused branch; avoids NameError
+
     logger.debug(
-        "Search — level=%s, section=%s, semester=%s, type=%s",
-        target_level, target_section, semester_filter, course_type_filter
+        "Search — level=%s, section=%s, semester=%s, type=%s, out_of_plan=%s",
+        target_level, target_section, semester_filter, course_type_filter, is_out_of_plan
     )
 
     # Step 1: Filter by metadata
@@ -130,16 +144,36 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
         meta = all_data['metadatas'][idx]
         plans = json.loads(meta.get('metadata', '[]'))
 
+        # Out-of-plan pre-check: if the course appears in the user's own section
+        # under ANY entry, it is already in their plan — exclude it entirely.
+        if is_out_of_plan and any(
+            p.get('section', '').strip() == target_section for p in plans
+        ):
+            continue
+
         for plan in plans:
             lvl = plan.get('level', '')
             sec = plan.get('section', '').strip()
             course_type = plan.get('type', '')
             sem = plan.get('semester', '')
 
-            level_match = (lvl == target_level)
-            section_match = (sec == target_section)
-            type_match = True if course_type_filter == "All" else (course_type == course_type_filter)
-            semester_match = (sem == semester_filter)
+            if is_out_of_plan:
+                # Out-of-plan: same-level courses from OTHER sections.
+                # section_match is always True here (courses in target_section were
+                # already excluded by the pre-check above), kept for explicitness.
+                level_match    = (lvl == target_level)
+                section_match  = (sec != target_section)
+                type_match     = True                          # type is irrelevant
+                semester_match = (sem in out_of_plan_semesters)
+            else:
+                level_match   = (lvl == target_level)
+                section_match = (sec == target_section)
+                type_match    = True if course_type_filter == "All" else (course_type == course_type_filter)
+                # Master UI uses "Fall"/"Spring" labels; map to the actual DB semester values.
+                if semester_filter in MASTER_SEMESTER_MAP:
+                    semester_match = (sem in MASTER_SEMESTER_MAP[semester_filter])
+                else:
+                    semester_match = (sem == semester_filter)
 
             if level_match and section_match and type_match and semester_match:
                 logger.debug("Match: %s | %s | %s | %s | %s", meta.get('title', 'N/A')[:50], lvl, sec, course_type, sem)

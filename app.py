@@ -9,7 +9,10 @@ except ImportError:
 
 import streamlit as st
 from job_examples import JOB_EXAMPLES
-from core.utils import ALL_SECTIONS, SECTION_LANGUAGE_MAPPING, parse_course_metadata, calculate_score_percentage
+from core.utils import (
+    ALL_SECTIONS, SECTION_LANGUAGE_MAPPING, COURSE_TYPE_MAP,
+    parse_course_metadata, calculate_score_percentage,
+)
 from core.database import load_resources
 from core.search import search_courses
 
@@ -43,15 +46,23 @@ def main():
 
         _, section, level = next(e for e in ALL_SECTIONS if e[0] == selected_display)
 
-        semester_options = ["BA3", "BA4", "BA5", "BA6"] if level == "Bachelor" else ["MA1", "MA2", "MA3", "MA4"]
+        semester_options = ["BA3", "BA4", "BA5", "BA6"] if level == "Bachelor" else ["Fall", "Spring"]
 
-        semester_filter = st.selectbox("📅 Semester", semester_options)
+        semester_filter = st.selectbox(
+            "📅 Semester",
+            semester_options,
+            help="Bachelor: specific semester (BA3–BA6). Master: Fall (MA1/MA3) or Spring (MA2/MA4).",
+        )
 
         course_type_filter = st.radio(
             "📌 Course Type",
-            ["Optional", "Mandatory", "All"],
+            ["Optional", "Mandatory", "All", "Out-of-plan"],
             index=0,
             horizontal=True,
+            help=(
+                "**Out-of-plan**: shows same-level courses from *other* sections "
+                "matching the selected semester parity (any type)."
+            ),
         )
 
         st.markdown("---")
@@ -60,8 +71,7 @@ def main():
             st.session_state.query = ""
             st.rerun()
 
-        _COURSE_TYPE_MAP = {"Optional": "Optionnel", "Mandatory": "Obligatoire", "All": "All"}
-        filters = (level, SECTION_LANGUAGE_MAPPING[section], semester_filter, _COURSE_TYPE_MAP[course_type_filter])
+        filters = (level, SECTION_LANGUAGE_MAPPING[section], semester_filter, COURSE_TYPE_MAP[course_type_filter])
 
         st.markdown("---")
         st.markdown("### 💡 How does it work?")
