@@ -57,13 +57,13 @@ def llm_rerank(query: str, candidate_tuples: tuple) -> dict | None:
 
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=4000,
+            max_tokens=8000,
             system=(
                 "You are a course recommendation engine for EPFL students. "
                 "Given a job description or interest description and a list of courses, rank them by relevance. "
                 "Return ONLY a JSON array of objects with three fields: 'title', 'score' (0-100), and 'reason' "
-                "(a 1-2 sentence explanation in English of why this course is relevant or not to the query). "
-                "Example: {\"title\": \"Probability and Statistics\", \"score\": 92, \"reason\": \"This course covers the fundamentals of probability and statistics, essential for quantitative modeling and risk analysis.\"} "
+                "(a 2-3 sentence explanation in English of why this course is relevant or not to the query). "
+                "Example: {\"title\": \"Probability and Statistics\", \"score\": 92, \"reason\": \"This course covers core probability theory and statistical inference methods that are directly applicable to data-driven roles. It builds the mathematical foundation needed for machine learning, risk modeling, and experimental design. Mastery of these concepts is expected in quantitative research and data science positions.\"} "
                 "Sort by score descending. No preamble, no markdown — just the JSON array. "
                 "Consider that foundational courses (electronics, mathematics, physics) are highly relevant "
                 "to applied engineering fields, even if their description doesn't explicitly mention the application domain."
