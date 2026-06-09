@@ -1,4 +1,5 @@
 import math
+import os
 import streamlit as st
 import anthropic
 import numpy as np
@@ -17,7 +18,8 @@ def expand_query(query):
     Falls back to an empty string on any error.
     """
     try:
-        client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+        api_key = os.environ.get("ANTHROPIC_API_KEY") or st.secrets["ANTHROPIC_API_KEY"]
+        client = anthropic.Anthropic(api_key=api_key)
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=150,
@@ -48,7 +50,8 @@ def llm_rerank(query: str, candidate_tuples: tuple) -> dict | None:
         Dict mapping course_id -> {'score': int (0-100), 'reason': str}, or None on failure.
     """
     try:
-        client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+        api_key = os.environ.get("ANTHROPIC_API_KEY") or st.secrets["ANTHROPIC_API_KEY"]
+        client = anthropic.Anthropic(api_key=api_key)
 
         courses_text = "\n".join(
             f"{i+1}. Title: {title}\n   Preview: {preview}"
