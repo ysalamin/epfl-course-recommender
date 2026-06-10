@@ -24,44 +24,56 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Compact layout: reduce default top-padding and element gaps
+st.markdown("""
+<style>
+.block-container { padding-top: 1.5rem; padding-bottom: 1rem; }
+div[data-testid="stVerticalBlock"] > div { gap: 0.25rem; }
+</style>
+""", unsafe_allow_html=True)
+
 
 def main():
-    st.title("🎓 EPFL Course Recommender")
-    st.markdown("### Find courses that match your interests and career goals")
-    st.markdown("---")
+    st.markdown("## 🎓 EPFL Course Recommender")
+    st.caption("Find courses that match your interests and career goals")
 
     emb, coll, bm25, data = load_resources()
 
-    with st.sidebar:
-        st.markdown("# 🔍 Filters")
-        st.markdown("Customize your course search")
-        st.markdown("---")
+    # ── Steps 1 / 2 / 3 — Filters ───────────────────────────────────────────
+    filter_col1, filter_col2, filter_col3 = st.columns(3)
 
+    with filter_col1:
+        st.markdown("**1️⃣ Choose your section**")
         section_display_names = [entry[0] for entry in ALL_SECTIONS]
         _default_section_idx = next(
             (i for i, e in enumerate(ALL_SECTIONS) if e[1] == "Computer Science" and e[2] == "Bachelor"),
             0,
         )
         selected_display = st.selectbox(
-            "🎯 Section / Programme",
+            "Section / Programme",
             section_display_names,
             index=_default_section_idx,
-            help="Select your section — the level (Bachelor/Master) is shown in parentheses"
+            help="Select your section — the level (Bachelor/Master) is shown in parentheses",
+            label_visibility="collapsed",
         )
 
-        _, section, level = next(e for e in ALL_SECTIONS if e[0] == selected_display)
+    _, section, level = next(e for e in ALL_SECTIONS if e[0] == selected_display)
 
+    with filter_col2:
+        st.markdown("**2️⃣ Pick your semester**")
         semester_options = ["BA3", "BA4", "BA5", "BA6"] if level == "Bachelor" else ["Fall", "Spring"]
-
         semester_filter = st.selectbox(
-            "📅 Semester",
+            "Semester",
             semester_options,
             help="Bachelor: specific semester (BA3–BA6). Master: Fall (MA1/MA3) or Spring (MA2/MA4).",
+            label_visibility="collapsed",
         )
 
+    with filter_col3:
+        st.markdown("**3️⃣ Course type**")
         _course_type_options = ["Optional", "Mandatory", "All", "Out-of-plan"]
         course_type_filter = st.radio(
-            "📌 Course Type",
+            "Course Type",
             _course_type_options,
             index=_course_type_options.index("All"),
             horizontal=True,
@@ -69,24 +81,13 @@ def main():
                 "**Out-of-plan**: shows same-level courses from *other* sections "
                 "matching the selected semester parity (any type)."
             ),
+            label_visibility="collapsed",
         )
 
-        st.markdown("---")
+    filters = (level, SECTION_LANGUAGE_MAPPING[section], semester_filter, COURSE_TYPE_MAP[course_type_filter])
 
-        if st.button("🔄 Reset", use_container_width=True, help="Reset the search"):
-            st.session_state.query = ""
-            st.rerun()
-
-        filters = (level, SECTION_LANGUAGE_MAPPING[section], semester_filter, COURSE_TYPE_MAP[course_type_filter])
-
-        st.markdown("---")
-        st.markdown("### 💡 How does it work?")
-        st.markdown("""
-        1. **Select** your section (Bachelor/Master included)
-        2. **Choose** your semester
-        3. **Describe** your dream job
-        4. **Discover** relevant courses
-        """)
+    # ── Step 4 — Job description ─────────────────────────────────────────────
+    st.markdown("**4️⃣ Describe your dream job (or pick an example)**")
 
     if 'query' not in st.session_state:
         st.session_state.query = ""
@@ -118,6 +119,7 @@ def main():
         )
     )
 
+    # ── Step 5 — Search ──────────────────────────────────────────────────────
     if st.button("🔍 Search courses", type="primary", use_container_width=True):
         with st.spinner("🔄 Analyzing courses..."):
             results = search_courses(query, filters, emb, coll, bm25, data)
@@ -184,6 +186,39 @@ def main():
                     st.markdown(f"[🔗 View full course page]({r['meta']['url']})")
 
                 st.markdown("---")
+
+    # ── Sidebar — Help + Reset ───────────────────────────────────────────────
+    with st.sidebar:
+        st.markdown("## ℹ️ About")
+        st.caption(
+            "Semantic + keyword search over the EPFL course catalog, "
+            "powered by sentence embeddings, BM25, and cross-encoder reranking. "
+            "Built for EPFL students exploring their study plan."
+        )
+        st.divider()
+
+        if st.button("🔄 Reset", use_container_width=True, help="Reset the search"):
+            st.session_state.query = ""
+            st.rerun()
+
+        st.divider()
+        st.markdown("### ⚙️ How does it work?")
+        st.markdown("""
+1. **Select** your section (Bachelor/Master included)
+2. **Pick** your semester
+3. **Paste** a job description or keywords
+4. **Hit Search** — courses ranked by relevance
+        """)
+        st.divider()
+        st.markdown("### 💡 Tips")
+        st.markdown("""
+- Paste a **real job posting** for best results
+- Leave the description **empty** to browse all courses alphabetically
+- Try **Out-of-plan** to discover courses from other sections
+- Shorter, focused queries often beat long paragraphs
+        """)
+        st.divider()
+        st.caption("📚 Data: EPFL course catalog · Built for EPFL students")
 
 
 if __name__ == "__main__":
