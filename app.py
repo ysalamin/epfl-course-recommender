@@ -38,9 +38,14 @@ def main():
         st.markdown("---")
 
         section_display_names = [entry[0] for entry in ALL_SECTIONS]
+        _default_section_idx = next(
+            (i for i, e in enumerate(ALL_SECTIONS) if e[1] == "Computer Science" and e[2] == "Bachelor"),
+            0,
+        )
         selected_display = st.selectbox(
             "🎯 Section / Programme",
             section_display_names,
+            index=_default_section_idx,
             help="Select your section — the level (Bachelor/Master) is shown in parentheses"
         )
 
@@ -54,10 +59,11 @@ def main():
             help="Bachelor: specific semester (BA3–BA6). Master: Fall (MA1/MA3) or Spring (MA2/MA4).",
         )
 
+        _course_type_options = ["Optional", "Mandatory", "All", "Out-of-plan"]
         course_type_filter = st.radio(
             "📌 Course Type",
-            ["Optional", "Mandatory", "All", "Out-of-plan"],
-            index=0,
+            _course_type_options,
+            index=_course_type_options.index("All"),
             horizontal=True,
             help=(
                 "**Out-of-plan**: shows same-level courses from *other* sections "
