@@ -189,14 +189,6 @@ def main():
 
     # ── Sidebar — Help + Reset ───────────────────────────────────────────────
     with st.sidebar:
-        st.markdown("## ℹ️ About")
-        st.caption(
-            "Semantic + keyword search over the EPFL course catalog, "
-            "powered by sentence embeddings, BM25, and cross-encoder reranking. "
-            "Built for EPFL students exploring their study plan."
-        )
-        st.divider()
-
         if st.button("🔄 Reset", use_container_width=True, help="Reset the search"):
             st.session_state.query = ""
             st.rerun()
@@ -218,7 +210,13 @@ def main():
 - Shorter, focused queries often beat long paragraphs
         """)
         st.divider()
-        st.caption("📚 Data: EPFL course catalog · Built for EPFL students")
+        st.markdown(
+            "**ℹ️ About**\n\n"
+            "Built for EPFL students to find courses matching their interests and career goals. "
+            "Under the hood: semantic search over course embeddings, keyword matching, and AI-powered ranking.\n\n"
+            "📩 Got a suggestion? Reach out: "
+            "[yoann.salamin@epfl.ch](mailto:yoann.salamin@epfl.ch)"
+        )
 
 
 if __name__ == "__main__":
