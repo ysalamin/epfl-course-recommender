@@ -129,6 +129,12 @@ def main():
             return
 
         st.markdown("---")
+        if query and query.strip() and st.session_state.get('llm_ranking_status') == 'fallback_error':
+            st.warning(
+                "⚠️ AI ranking is temporarily unavailable — these results use a basic keyword + "
+                "semantic score instead. Recommendations may be less precise and per-course "
+                "explanations are missing. Please try again later for AI-ranked results."
+            )
         n = len(results)
         plural = "s" if n > 1 else ""
         if query and query.strip():

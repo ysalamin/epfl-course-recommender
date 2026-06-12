@@ -304,9 +304,11 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
     else:
         st.warning("⚠️ LLM search limit of 20 per session reached. Falling back to BM25/semantic scoring.")
         logger.info("LLM rerank rate limit reached (%d/20).", llm_search_count)
+        st.session_state['llm_ranking_status'] = 'fallback_ratelimit'
 
     if llm_scores is not None:
         st.session_state['llm_search_count'] = llm_search_count + 1
+        st.session_state['llm_ranking_status'] = 'llm'
 
         for candidate in merged_candidates:
             llm_entry = llm_scores.get(candidate['id'], {'score': 0, 'reason': ''})
@@ -325,6 +327,7 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
     else:
         if use_llm:
             logger.warning("LLM rerank returned None, falling back to combined scoring.")
+            st.session_state['llm_ranking_status'] = 'fallback_error'
 
         merged_candidates.sort(key=lambda x: x['score'], reverse=True)
 
