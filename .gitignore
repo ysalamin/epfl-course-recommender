@@ -6,3 +6,4 @@ venv/
 .claude/
 CLAUDE.md
 .streamlit/secrets.toml
+analytics.db

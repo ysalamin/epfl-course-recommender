@@ -204,14 +204,14 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
     logger.debug("Courses after filtering: %d", len(filtered_candidates))
 
     if not filtered_candidates:
-        return []
+        return [], {'used_llm_rerank': False, 'llm_rerank_failed': False}
 
     # Step 2: No query — return alphabetically
     if not query or not query.strip():
         filtered_candidates.sort(key=lambda x: x['meta']['title'])
         for candidate in filtered_candidates:
             candidate['score'] = 0
-        return filtered_candidates
+        return filtered_candidates, {'used_llm_rerank': False, 'llm_rerank_failed': False}
 
     # Step 3: Hybrid retrieval — BM25 + Semantic
 
@@ -324,10 +324,15 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
         for candidate in merged_candidates:
             candidate['display_score'] = candidate.get('llm_score', 0) / 100.0
 
+        search_info = {'used_llm_rerank': True, 'llm_rerank_failed': False}
+
     else:
         if use_llm:
             logger.warning("LLM rerank returned None, falling back to combined scoring.")
             st.session_state['llm_ranking_status'] = 'fallback_error'
+            search_info = {'used_llm_rerank': False, 'llm_rerank_failed': True}
+        else:
+            search_info = {'used_llm_rerank': False, 'llm_rerank_failed': False}
 
         merged_candidates.sort(key=lambda x: x['score'], reverse=True)
 
@@ -339,4 +344,4 @@ def search_courses(query, filters, embedder, collection, bm25, all_data):
                  [(i+1, c['meta']['title'][:30], f"{c['display_score']*100:.1f}%")
                   for i, c in enumerate(merged_candidates)])
 
-    return merged_candidates
+    return merged_candidates, search_info

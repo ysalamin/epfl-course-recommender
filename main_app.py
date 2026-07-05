@@ -1,12 +1,3 @@
-# CRITICAL: Patch SQLite for ChromaDB on Streamlit Cloud (Linux)
-try:
-    __import__('pysqlite3')
-    import sys
-    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-except ImportError:
-    # Windows/local environment - use standard sqlite3
-    pass
-
 import time
 import streamlit as st
 from job_examples import JOB_EXAMPLES
@@ -17,14 +8,6 @@ from core.utils import (
 from core.database import load_resources
 from core.search import search_courses
 from core.analytics import init_db, track_session, log_search
-
-# Must be first Streamlit command
-st.set_page_config(
-    page_title="EPFL Course Recommender",
-    page_icon="🎓",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # Compact layout: reduce default top-padding and element gaps
 st.markdown("""
@@ -245,5 +228,4 @@ def main():
         )
 
 
-if __name__ == "__main__":
-    main()
+main()
