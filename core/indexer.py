@@ -4,7 +4,7 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 
 # Config
-INPUT_FILE = "../data/cours_data_final.json"
+INPUT_FILE = "../data/cours_data_2026.json"
 DB_PATH = "../epfl_cours_db"
 COLLECTION_NAME = "cours_epfl"
 BATCH_SIZE = 50

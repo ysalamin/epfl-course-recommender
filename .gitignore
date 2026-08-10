@@ -7,3 +7,4 @@ venv/
 CLAUDE.md
 .streamlit/secrets.toml
 analytics.db
+epfl_cours_db/

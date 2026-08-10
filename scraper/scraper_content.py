@@ -1,3 +1,4 @@
+import sys
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -5,14 +6,32 @@ import time
 import json
 import os
 
+# La console Windows (cp1252) ne sait pas afficher les emojis -> on force l'UTF-8.
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+except AttributeError:
+    pass
+
 # --- CONFIGURATION ---
-INPUT_URLS_FILE = "../data/urls_cours.txt"
-OUTPUT_JSON_FILE = "../data/cours_data_final.json"
+INPUT_URLS_FILE = "../data/urls_cours_2026.txt"
+OUTPUT_JSON_FILE = "../data/cours_data_2026.json"
+FAILED_URLS_FILE = "../data/failed_urls_2026.txt"
+
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                  '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+}
+
+# Délai (en secondes) entre deux requêtes pour rester poli avec le serveur EPFL.
+REQUEST_DELAY = 0.5
+
 
 def get_course_details(url):
     try:
-        response = requests.get(url)
-        if response.status_code != 200: return None
+        response = requests.get(url, headers=HEADERS, timeout=30)
+        if response.status_code != 200:
+            print(f"   ⚠️  HTTP {response.status_code} : {url}", flush=True)
+            return None
         soup = BeautifulSoup(response.content, "html.parser")
 
         # Retrieving the title of the course
@@ -96,30 +115,42 @@ def get_course_details(url):
 
 
     except Exception as e:
-        print(f"Error retrieving : {url}, {e}")
+        print(f"   ⚠️  Erreur : {url}, {e}", flush=True)
         return None
 
 def main():
-    print("Start scraping...")
+    print("Start scraping...", flush=True)
 
     if not os.path.exists(INPUT_URLS_FILE):
-        print("Input_urls_file not found, path problem")
+        print(f"❌ Input urls file not found: {INPUT_URLS_FILE}", flush=True)
+        return
 
     with open(INPUT_URLS_FILE, "r", encoding="utf-8") as f :
         urls = [line.strip() for line in f if line.strip()]
 
     courses_data = []
+    failed_urls = []
 
     for i, url in enumerate(urls):
-        print(f"{i} / {len(urls)} / {url.split('/')[-1][:40]}...")
+        print(f"{i} / {len(urls)} / {url.split('/')[-1][:40]}...", flush=True)
         content = get_course_details(url)
         if content:
             courses_data.append(content)
-        
+        else:
+            # On ne les ignore plus silencieusement : on garde une trace des échecs.
+            failed_urls.append(url)
+        time.sleep(REQUEST_DELAY)
+
     with open(OUTPUT_JSON_FILE, "w", encoding="utf-8") as f:
         json.dump(courses_data, f, ensure_ascii=False, indent=4)
 
-    print("Done, you can now run python indexer.py")
+    with open(FAILED_URLS_FILE, "w", encoding="utf-8") as f:
+        for url in failed_urls:
+            f.write(url + "\n")
+
+    print(f"\n✅ {len(courses_data)} cours scrapés -> {OUTPUT_JSON_FILE}", flush=True)
+    print(f"⚠️  {len(failed_urls)} échecs -> {FAILED_URLS_FILE}", flush=True)
+    print("Done, you can now run python indexer.py", flush=True)
 
 
 if __name__ == "__main__":
