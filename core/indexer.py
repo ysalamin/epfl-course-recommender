@@ -1,18 +1,21 @@
 import os
+import sys
 import json
 import chromadb
 from sentence_transformers import SentenceTransformer
 
-# Config
-INPUT_FILE = "../data/cours_data_2026.json"
-DB_PATH = "../epfl_cours_db"
+# Config — resolved from this file's location (repo root = parent of core/) so the
+# script works regardless of cwd, whether run as `python -m core.indexer` from the
+# repo root or `python indexer.py` from core/.
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INPUT_FILE = os.path.join(REPO_ROOT, "data", "cours_data_2026.json")
+DB_PATH = os.path.join(REPO_ROOT, "epfl_cours_db")
 COLLECTION_NAME = "cours_epfl"
 BATCH_SIZE = 50
 
 def load_data(filepath):
     if not os.path.exists(filepath):
-        print("filepath error")
-        return None
+        raise FileNotFoundError(f"Input courses file not found: {filepath}")
     with open(filepath, "r", encoding="utf-8") as f :
         data = json.load(f)
     print(f"{len(data)} courses loaded from {filepath}")
@@ -24,7 +27,7 @@ def setup_chromaDB(db_path, collection_name):
     # Avoid duplicate
     try:
         client.delete_collection(name=collection_name)
-    except:
+    except Exception:
         pass
 
     collection = client.create_collection(name=collection_name)
@@ -32,7 +35,8 @@ def setup_chromaDB(db_path, collection_name):
 
 def main():
     course_data = load_data(INPUT_FILE)
-    if not course_data: return
+    if not course_data:
+        sys.exit(f"No courses found in {INPUT_FILE} — aborting indexation.")
 
     print("model and db setup / loading...")
     model = SentenceTransformer('all-MiniLM-L6-v2')
